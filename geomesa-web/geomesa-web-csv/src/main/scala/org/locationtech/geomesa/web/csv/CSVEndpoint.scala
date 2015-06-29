@@ -16,17 +16,12 @@
 
 package org.locationtech.geomesa.web.csv
 
-import java.io.{ByteArrayOutputStream, OutputStream, BufferedOutputStream, File}
-import java.net.URL
-import java.nio.charset.Charset
+import java.io.File
 import java.util.UUID
 
 import com.typesafe.scalalogging.slf4j.Logging
 import org.apache.commons.io.FilenameUtils
-import org.geotools.GML
-import org.geotools.gml.producer.FeatureTransformer
 import org.locationtech.geomesa.accumulo.{TypeSchema, csv}
-import org.locationtech.geomesa.utils.geotools.SimpleFeatureTypes
 import org.locationtech.geomesa.web.core.GeoMesaScalatraServlet
 import org.locationtech.geomesa.web.scalatra.PkiAuthenticationSupport
 import org.scalatra._
@@ -100,77 +95,8 @@ class CSVEndpoint(csvUploadCache: CSVUploadCache)
       val name = params.getOrElse("name", record.schema.name)
       val schema = params.getOrElse("schema", record.schema.schema)
       val latLon = for (latf <- params.get("latField"); lonf <- params.get("lonField")) yield (latf, lonf)
-      csvUploadCache.store(tag, record.copy(schema = TypeSchema(name, schema, latLon)))
+      csvUploadCache.update(tag, record.copy(schema = TypeSchema(name, schema, latLon)))
       Ok()
-    }
-  }
-
-  get("/:csvid.gml") {
-    val tag = getRecordTag
-    val record = csvUploadCache.load(tag)
-    if (record == null) {
-      NotFound()
-    } else {
-      contentType = "application/xml"
-      val file = record.csvFile
-      val header = record.hasHeader
-      try {
-        // before running the gml code, first create the XSD, otherwise it can cause deadlocks in geotools
-        getXsd(tag.csvId, record, new ByteArrayOutputStream())
-
-        val fc = csv.csvToFeatures(file, header, record.schema)
-        val out = new BufferedOutputStream(response.getOutputStream)
-        val transformer = new FeatureTransformer()
-        transformer.getFeatureTypeNamespaces.declareNamespace(fc.getSchema,
-          "geomesa", s"feat:geomesa:${tag.csvId}")
-        transformer.addSchemaLocation(s"feat:geomesa:${tag.csvId}",
-          request.getRequestURL.toString.replaceAll("gml$", "xsd"))
-
-        transformer.setIndentation(2)
-        transformer.setCollectionBounding(true)
-        transformer.setEncoding(Charset.forName("utf-8"))
-        transformer.setGmlPrefixing(true)
-        transformer.setSrsName("http://www.opengis.net/gml/srs/epsg.xml#4326")
-
-        transformer.transform(fc, out)
-        out.flush()
-
-        Ok()
-      } catch {
-        case ex: Throwable =>
-          logger.error("Error creating GML", ex)
-          InternalServerError()
-      }
-    }
-  }
-
-  get("/:csvid.xsd") {
-    val tag = getRecordTag
-    val record = csvUploadCache.load(tag)
-    if (record == null) {
-      NotFound()
-    } else {
-      contentType = "application/xml"
-      try {
-        val out = new BufferedOutputStream(response.getOutputStream)
-        getXsd(tag.csvId, record, out)
-        out.flush()
-        Ok()
-      } catch {
-        case ex: Throwable =>
-          logger.error("Error creating GML", ex)
-          InternalServerError()
-      }
-    }
-  }
-
-  def getXsd(csvId: String, record: Record, out: OutputStream) = {
-    record.synchronized {
-      val sft = SimpleFeatureTypes.createType(record.schema.name, record.schema.schema)
-      val gml = new GML(GML.Version.GML2)
-      gml.setBaseURL(new URL("http://localhost"))
-      gml.setNamespace("geomesa", s"feat:geomesa:$csvId")
-      gml.encode(out, sft)
     }
   }
 
