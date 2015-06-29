@@ -19,9 +19,9 @@ package org.locationtech.geomesa.web.csv
 import java.io.File
 import java.util.concurrent.TimeUnit
 
-import com.google.common.cache.{CacheBuilder, RemovalNotification, RemovalListener, Cache}
+import com.google.common.cache._
+import com.typesafe.scalalogging.slf4j.Logging
 import org.locationtech.geomesa.accumulo.TypeSchema
-import org.locationtech.geomesa.web.scalatra.User
 
 object CSVUploadCache {
   case class RecordTag(userId: Option[String], csvId: String)
@@ -30,12 +30,15 @@ object CSVUploadCache {
 
 import CSVUploadCache._
 
-class CSVUploadCache {
+class CSVUploadCache
+  extends Logging {
 
   val records: Cache[RecordTag, Record] = {
     val removalListener = new RemovalListener[RecordTag, Record]() {
       override def onRemoval(notification: RemovalNotification[RecordTag, Record]) =
-        cleanup(notification.getKey, notification.getValue)
+        if (notification.getCause != RemovalCause.REPLACED) {
+          cleanup(notification.getKey, notification.getValue)
+        }
     }
     CacheBuilder.newBuilder()
       .expireAfterAccess(1, TimeUnit.HOURS)
@@ -48,7 +51,24 @@ class CSVUploadCache {
     records.invalidate(tag)
   }
 
-  def store(tag: RecordTag, record: Record) { records.put(tag, record) }
+  private def userName(tag: RecordTag) = tag.userId.getOrElse("ANONYMOUS")
+  def store(tag: RecordTag, record: Record) {
+    Option(records.getIfPresent(tag)) match {
+      case Some(_) =>
+        logger.warn(s"User ${userName(tag)} has already stored a CSV with ID ${tag.csvId}; leaving it")
+      case None    =>
+        records.put(tag, record)
+    }
+  }
+  def update(tag: RecordTag, record: Record) {
+    Option(records.getIfPresent(tag)) match {
+      case Some(oldRecord) =>
+        if (oldRecord.csvFile != record.csvFile) oldRecord.csvFile.delete() // replacing entry will not delete old file
+      case None            =>
+        logger.warn(s"User ${userName(tag)} has not stored a CSV with ID ${tag.csvId}; storing instead")
+    }
+    records.put(tag, record)
+  }
   def load(tag: RecordTag) = records.getIfPresent(tag)
   def clear(tag: RecordTag) { for {record <- Option(load(tag))} cleanup(tag, record) }
 }
