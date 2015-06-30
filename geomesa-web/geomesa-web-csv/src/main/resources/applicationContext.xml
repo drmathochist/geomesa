@@ -25,11 +25,20 @@
       <constructor-arg index="0" ref="csvUploadCache"/>
     </bean>
 
+    <bean name="csvADSParams" class="org.locationtech.geomesa.web.csv.ADSParams">
+      <constructor-arg index="0" value="instanceId"/>
+      <constructor-arg index="1" value="zookeeper"/>
+      <constructor-arg index="2" value="user"/>
+      <constructor-arg index="3" value="pass"/>
+      <constructor-arg index="4" value="table"/>
+    </bean>
+
     <bean name="geomesaCSVIngestProcess" class="org.locationtech.geomesa.web.csv.IngestCSVProcess">
       <constructor-arg index="0" ref="csvUploadCache"/>
       <constructor-arg index="1" ref="geomesaImportProcess"/>
       <constructor-arg index="2" ref="catalog"/>
       <constructor-arg index="3" ref="accessRulesDao"/>
+      <constructor-arg index="4" ref="csvADSParams"/>
     </bean>
 
 </beans>

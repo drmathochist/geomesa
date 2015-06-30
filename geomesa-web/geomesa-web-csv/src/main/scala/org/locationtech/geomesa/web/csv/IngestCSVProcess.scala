@@ -1,5 +1,6 @@
 package org.locationtech.geomesa.web.csv
 
+import java.io.Serializable
 import java.{util => ju}
 
 import org.geoserver.catalog.{Catalog, DataStoreInfo, WorkspaceInfo}
@@ -18,7 +19,8 @@ import org.locationtech.geomesa.web.csv.CSVUploadCache.{RecordTag, Record}
 class IngestCSVProcess(csvUploadCache: CSVUploadCache,
                        importer: ImportProcess,
                        catalog: Catalog,
-                       dataAccessRuleDAO: DataAccessRuleDAO)
+                       dataAccessRuleDAO: DataAccessRuleDAO,
+                       adsParams: ADSParams)
   extends GeomesaCSVProcess(csvUploadCache) {
 
   @DescribeResult(name = "layerName", description = "Name of the new featuretype, with workspace")
@@ -84,6 +86,9 @@ class IngestCSVProcess(csvUploadCache: CSVUploadCache,
         case None    =>
           val s = catalog.getFactory.createDataStore()
           s.setName(csvStoreName)
+          s.setWorkspace(workspace)
+          val params = s.getConnectionParameters
+          params.putAll(adsParams.params)
           catalog.add(s)
           s
       }
@@ -95,4 +100,20 @@ class IngestCSVProcess(csvUploadCache: CSVUploadCache,
     Option(csvUploadCache.load(tag)).map(ingest(userName, _))
                                     .getOrElse("")  // return an empty string for a failed ingest; better ideas?
   }
+}
+
+case class ADSParams(instance: String,
+                     zookeepers: String,
+                     user: String,
+                     password: String,
+                     table: String) {
+  import scala.collection.JavaConverters._
+
+  def params: ju.Map[String, Serializable] =
+    Map[String, Serializable]("instanceId" -> instance,
+                              "zookeepers" -> zookeepers,
+                              "user"       -> user,
+                              "password"   -> password,
+                              "tableName"  -> table
+                             ).asJava
 }

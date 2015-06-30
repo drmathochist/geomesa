@@ -18,13 +18,18 @@ package org.locationtech.geomesa.web.csv
 
 import org.geoserver.security.xml.XMLGeoserverUser
 import org.locationtech.geomesa.process.GeomesaProcess
+import org.springframework.security.authentication.AnonymousAuthenticationToken
 import org.springframework.security.core.Authentication
 import org.springframework.security.core.context.SecurityContextHolder
 
 class GeomesaCSVProcess(csvUploadCache: CSVUploadCache) extends GeomesaProcess {
 
   def getUserAuth: Option[Authentication] =
-    Option(SecurityContextHolder.getContext.getAuthentication)
+    Option(SecurityContextHolder.getContext.getAuthentication) match {
+      case None => None
+      case Some(_: AnonymousAuthenticationToken) => None  // anonymous authentication should be the same as no authentication
+      case authO@Some(_) => authO
+    }
 
   def getUserName(userAuth: Authentication) =
     userAuth.getPrincipal match {
