@@ -37,8 +37,7 @@
       <constructor-arg index="0" ref="csvUploadCache"/>
       <constructor-arg index="1" ref="geomesaImportProcess"/>
       <constructor-arg index="2" ref="catalog"/>
-      <constructor-arg index="3" ref="accessRulesDao"/>
-      <constructor-arg index="4" ref="csvADSParams"/>
+      <constructor-arg index="3" ref="csvADSParams"/>
     </bean>
 
 </beans>
