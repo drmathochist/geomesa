@@ -4,7 +4,7 @@
 * are made available under the terms of the Apache License, Version 2.0
 * which accompanies this distribution and is available at
 * http://www.opensource.org/licenses/apache2.0.php.
-*************************************************************************/;
+*************************************************************************/
 
 package org.locationtech.geomesa.kafka
 
@@ -13,11 +13,13 @@ import com.vividsolutions.jts.geom.Point
 import org.geotools.factory.CommonFactoryFinder
 import org.geotools.feature.simple.SimpleFeatureBuilder
 import org.geotools.filter.text.ecql.ECQL
+import org.geotools.filter.visitor.SimplifyingFilterVisitor
 import org.joda.time.{DateTime, DateTimeZone, Instant}
-import org.locationtech.geomesa.kafka.{CreateOrUpdate, LiveFeatureCache}
+import org.locationtech.geomesa.utils.geotools.Conversions._
 import org.locationtech.geomesa.utils.geotools.SimpleFeatureTypes
 import org.locationtech.geomesa.utils.text.WKTUtils
 import org.opengis.feature.simple.SimpleFeature
+import org.opengis.filter.Filter
 
 import scala.util.Random
 
@@ -60,10 +62,12 @@ class AttributeIndexingTest {
   }
 
 
-  def time[A](a: => A) = { val now = System.nanoTime
+  def time[A](a: => A) = {
+    val now = System.currentTimeMillis()
     val result = a
-    println("%f seconds".format( (System.nanoTime - now) / 1000000000.0 ))
-    result
+    //println("%f seconds".format( (System.nanoTime - now) / 1000000000.0 ))
+
+    (result, System.currentTimeMillis() - now)
   }
 
   implicit val ticker = Ticker.systemTicker()
@@ -75,6 +79,9 @@ class AttributeIndexingTest {
   val w14 = ECQL.toFilter("What = 1 OR What = 2 OR What = 3 or What = 4")
 
   val where = ECQL.toFilter("BBOX(Where, 0, 0, 180, 90)")
+  val where2 = ECQL.toFilter("BBOX(Where, -180, -90, 0, 0)")
+
+  val bbox2 = ff.or(where, where2)
 
   val justified = ECQL.toFilter("Why is not null")
 
@@ -84,7 +91,57 @@ class AttributeIndexingTest {
   val just = ff.or(justifiedAB, justifiedCD)
 
   val justBBOX = ff.and(just, where)
+  val justBBOX2 = ff.and(just, where2)
+
+  val justOR = ff.or(justBBOX, justBBOX2)
+
+  val niceAnd = ff.and(justOR, just)
+
+  val geoJustAB = ff.and(justifiedAB, bbox2)
+  val geoJustCD = ff.and(justifiedCD, bbox2)
+  val badOr = ff.or(geoJustAB, geoJustCD)
+
+
+  val filters = Seq(ab, cd, w14, where, justified, justifiedAB, justifiedCD, just, justBBOX, justBBOX2, bbox2)
 
   val feats = (0 until 100000).map(buildFeature)
   feats.foreach{lfc.createOrUpdateFeature(_)}
+
+  val sfv = new SimplifyingFilterVisitor
+
+  time(lfc.getReaderForFilter(where.accept(sfv, null).asInstanceOf[Filter]).getIterator.size)
+
+
+  def benchmark(f: Filter) {
+    val (regularCount, t1) = time(lfc.getReaderForFilter(f).getIterator.size)
+
+    import org.locationtech.geomesa.filter._
+    val cnf = rewriteFilterInCNF(f)
+    val (cnfCount, tcnf) = time(lfc.getReaderForFilter(cnf.accept(sfv, null).asInstanceOf[Filter]).getIterator.size)
+
+    val dnf = rewriteFilterInDNF(f)
+    val (dnfCount, tdnf) = time(lfc.getReaderForFilter(dnf.accept(sfv, null).asInstanceOf[Filter]).getIterator.size)
+
+    //val (simpleCount, t2) = time(lfc.getReaderForFilter(f.accept(sfv, null).asInstanceOf[Filter]).getIterator.size)
+    val (unoptimizedCount, t3) = time(lfc.unoptimized(f).getIterator.size)
+
+    println(s"\nFilter: $f")
+    if (regularCount == cnfCount && regularCount == dnfCount && regularCount == unoptimizedCount) {
+      if (t3 < t1) {
+        println("'Unoptimized' was quicker than regular")
+      }
+      if (tcnf < t1) {
+        println("'CNF' was quicker than regular")
+      }
+      if (tdnf < t1) {
+        println("'DNF' was quicker than regular")
+      }
+      println(s"All filters returned $regularCount")
+
+    } else {
+      println(s"MISMATCHED Counts: Regular: $regularCount CNF: $tcnf DNF: $tdnf  Unoptimized: $unoptimizedCount")
+    }
+    println(s"Timings: regular: $t1 CNF: $tcnf DNF: $tdnf unoptimized: $t3\n")
+  }
+
 }
