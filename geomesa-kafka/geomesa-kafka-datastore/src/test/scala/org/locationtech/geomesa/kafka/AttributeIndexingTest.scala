@@ -19,7 +19,9 @@ import org.locationtech.geomesa.utils.geotools.Conversions._
 import org.locationtech.geomesa.utils.geotools.SimpleFeatureTypes
 import org.locationtech.geomesa.utils.text.WKTUtils
 import org.opengis.feature.simple.SimpleFeature
-import org.opengis.filter.Filter
+import org.opengis.filter.spatial._
+import org.opengis.filter.temporal._
+import org.opengis.filter._
 
 import scala.util.Random
 
@@ -144,4 +146,93 @@ class AttributeIndexingTest {
     println(s"Timings: regular: $t1 CNF: $tcnf DNF: $tdnf unoptimized: $t3\n")
   }
 
+}
+
+import scala.collection.JavaConversions._
+
+class GraphVizFilterVisitor extends FilterVisitor {
+  override def visit(filter: And, extraData: scala.Any): AnyRef = {
+    linkChildren(filter)
+    printOperand(filter, "AND")
+  }
+  override def visit(filter: Or, extraData: scala.Any): AnyRef = {
+    linkChildren(filter)
+    printOperand(filter, "OR")
+  }
+
+  def linkChildren(binary: BinaryLogicOperator) = {
+    binary.getChildren.foreach { c =>
+      println(s"node_${binary.hashCode()} -> node_${c.hashCode()}")
+    }
+    null
+  }
+
+  def printOperand(filter: Filter, op: String) = {
+    println(s"""node_${filter.hashCode()} [ label="$op" shape="rectangle"]""")
+
+  }
+
+  override def visit(filter: Not, extraData: scala.Any): AnyRef = printRectangle(filter)
+
+  override def visit(metBy: MetBy, extraData: scala.Any): AnyRef = printRectangle(metBy)
+  override def visit(meets: Meets, extraData: scala.Any): AnyRef = printRectangle(meets)
+  override def visit(ends: Ends, extraData: scala.Any): AnyRef = printRectangle(ends)
+  override def visit(endedBy: EndedBy, extraData: scala.Any): AnyRef = printRectangle(endedBy)
+  override def visit(begunBy: BegunBy, extraData: scala.Any): AnyRef = printRectangle(begunBy)
+  override def visit(begins: Begins, extraData: scala.Any): AnyRef = printRectangle(begins)
+  override def visit(anyInteracts: AnyInteracts, extraData: scala.Any): AnyRef = printRectangle(anyInteracts)
+
+  override def visit(contains: TOverlaps, extraData: scala.Any): AnyRef = printRectangle(contains)
+  override def visit(equals: TEquals, extraData: scala.Any): AnyRef = printRectangle(equals)
+  override def visit(contains: TContains, extraData: scala.Any): AnyRef = printRectangle(contains)
+  override def visit(overlappedBy: OverlappedBy, extraData: scala.Any): AnyRef = printRectangle(overlappedBy)
+  override def visit(filter: Touches, extraData: scala.Any): AnyRef = printRectangle(filter)
+  override def visit(filter: Overlaps, extraData: scala.Any): AnyRef = printRectangle(filter)
+
+  override def visit(during: During, extraData: scala.Any): AnyRef = printRectangle(during)
+  override def visit(before: Before, extraData: scala.Any): AnyRef = printRectangle(before)
+  override def visit(after: After, extraData: scala.Any): AnyRef = printRectangle(after)
+  override def visit(filter: Id, extraData: scala.Any): AnyRef = printRectangle(filter)
+  override def visit(filter: Equals, extraData: scala.Any): AnyRef = printRectangle(filter)
+  override def visit(filter: IncludeFilter, extraData: scala.Any): AnyRef = printRectangle(filter)
+
+  override def visit(filter: DWithin, extraData: scala.Any): AnyRef = printRectangle(filter)
+  override def visit(filter: Within, extraData: scala.Any): AnyRef = printRectangle(filter)
+
+
+  override def visit(filter: PropertyIsLessThanOrEqualTo, extraData: scala.Any): AnyRef = printRectangle(filter)
+  override def visit(filter: PropertyIsLessThan, extraData: scala.Any): AnyRef = printRectangle(filter)
+  override def visit(filter: PropertyIsGreaterThanOrEqualTo, extraData: scala.Any): AnyRef = printRectangle(filter)
+  override def visit(filter: PropertyIsGreaterThan, extraData: scala.Any): AnyRef = printRectangle(filter)
+  override def visit(filter: PropertyIsNotEqualTo, extraData: scala.Any): AnyRef = printRectangle(filter)
+  override def visit(filter: PropertyIsEqualTo, extraData: scala.Any): AnyRef = printRectangle(filter)
+  override def visit(filter: PropertyIsBetween, extraData: scala.Any): AnyRef = printRectangle(filter)
+
+
+  override def visit(filter: ExcludeFilter, extraData: scala.Any): AnyRef = printRectangle(filter)
+
+  override def visit(filter: PropertyIsLike, extraData: scala.Any): AnyRef = printRectangle(filter)
+
+  override def visit(filter: PropertyIsNull, extraData: scala.Any): AnyRef = printRectangle(filter)
+
+  override def visit(filter: PropertyIsNil, extraData: scala.Any): AnyRef = printRectangle(filter)
+
+  override def visit(filter: BBOX, extraData: scala.Any): AnyRef = printRectangle(filter)
+
+  override def visit(filter: Beyond, extraData: scala.Any): AnyRef = printRectangle(filter)
+
+  override def visit(filter: Contains, extraData: scala.Any): AnyRef = printRectangle(filter)
+
+  override def visit(filter: Crosses, extraData: scala.Any): AnyRef = printRectangle(filter)
+
+  override def visit(filter: Disjoint, extraData: scala.Any): AnyRef = printRectangle(filter)
+
+  override def visitNullFilter(extraData: scala.Any): AnyRef = ??? // printRectangle(filter)
+
+  override def visit(filter: Intersects, extraData: scala.Any): AnyRef = printRectangle(filter)
+  
+  def printRectangle(filter: Filter) = {
+    println(s"""node_${filter.hashCode()} [ label="${filter.toString}" shape="rectangle"]""")
+    null
+  }
 }
