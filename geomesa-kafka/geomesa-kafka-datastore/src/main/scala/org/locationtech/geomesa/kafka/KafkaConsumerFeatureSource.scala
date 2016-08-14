@@ -99,40 +99,49 @@ trait KafkaConsumerFeatureCache extends QuadTreeFeatureStore {
       case f: IncludeFilter => include(f)
       case f: Id            => fid(f)
       case f: And           => and(f)
-      case f: BBOX          => bbox(f)
-      case f: Intersects    => intersects(f)
-      case f: Within        => within(f)
+      case f: BBOX          => println(s"Running BBOX; $f"); bbox(f)
+      case f: Intersects    => println(s"Running INTERSECTS; $f"); intersects(f)
+      case f: Within        => println(s"Running Within; $f"); within(f)
       case f: Or            => or(f)
       case f                => unoptimized(f)
     }
 
-  def include(i: IncludeFilter) = new DFR(sft, new DFI(features.valuesIterator.map(_.sf)))
+  def include(i: IncludeFilter) = {
+    println("Running Filter.INCLUDE")
+    new DFR(sft, new DFI(features.valuesIterator.map(_.sf)))
+  }
 
   def fid(ids: Id): FR = {
+    println("Queried for IDs; using feature ID index")
     val iter = ids.getIDs.flatMap(id => features.get(id.toString).map(_.sf)).iterator
     new DFR(sft, new DFI(iter))
   }
 
   def and(a: And): FR = {
+    println(s"Running an AND query for filter: $a")
     val geometries = extractGeometries(a, sft.getGeometryDescriptor.getLocalName)
     if (geometries.isEmpty) {
+      println("Could not extract geometries; running unoptimized")
       unoptimized(a)
     } else {
       val envelope = geometries.head.getEnvelopeInternal
       geometries.tail.foreach(g => envelope.expandToInclude(g.getEnvelopeInternal))
+      println(s"Calling out to the spatial index with envelope $envelope")
       new DFR(sft, new DFI(spatialIndex.query(envelope, a.evaluate)))
     }
   }
 
   def or(o: Or): FR = {
-    val readers = o.getChildren.map(getReaderForFilter).map(_.getIterator)
+    println(s"Running an or query for $o")
+    val readers = o.getChildren.map{ f => println(s"Running filter separately for $f"); getReaderForFilter(f)}.map(_.getIterator)
     val composed = readers.foldLeft(Iterator[SimpleFeature]())(_ ++ _)
     new DFR(sft, new DFI(composed))
   }
 
-  def unoptimized(f: Filter): FR =
+  def unoptimized(f: Filter): FR = {
+    println(s"Running filter unoptimized: $f")
     new FilteringFeatureReader[SimpleFeatureType, SimpleFeature](include(Filter.INCLUDE), f)
-
+  }
 }
 
 object KafkaConsumerFeatureSourceFactory {

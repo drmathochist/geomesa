@@ -24,8 +24,6 @@ import org.opengis.filter.spatial._
 import org.opengis.filter.temporal._
 import org.opengis.filter._
 import scala.language._
-
-
 import scala.util.Random
 
 class AttributeIndexingTest {
@@ -86,6 +84,9 @@ class AttributeIndexingTest {
   val where = ECQL.toFilter("BBOX(Where, 0, 0, 180, 90)")
   val where2 = ECQL.toFilter("BBOX(Where, -180, -90, 0, 0)")
 
+  val posIDL = ECQL.toFilter("BBOX(Where, 170, 0, 180, 10)")
+  val negIDL = ECQL.toFilter("BBOX(Where, -180, 0, -170, 10)")
+
   val bbox2 = ff.or(where, where2)
 
   val justified = ECQL.toFilter("Why is not null")
@@ -119,7 +120,6 @@ class AttributeIndexingTest {
 
   def benchmark(f: Filter) {
     val (regularCount, t1) = time(lfc.getReaderForFilter(f).getIterator.size)
-
 
     val cnf = rewriteFilterInCNF(f)
     val (cnfCount, tcnf) = time(lfc.getReaderForFilter(cnf.accept(sfv, null).asInstanceOf[Filter]).getIterator.size)
