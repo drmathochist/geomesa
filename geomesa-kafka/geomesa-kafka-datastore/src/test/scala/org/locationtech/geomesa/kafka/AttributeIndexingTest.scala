@@ -16,19 +16,22 @@ import org.geotools.filter.text.ecql.ECQL
 import org.geotools.filter.visitor.SimplifyingFilterVisitor
 import org.joda.time.{DateTime, DateTimeZone, Instant}
 import org.locationtech.geomesa.utils.geotools.Conversions._
+import org.locationtech.geomesa.filter._
 import org.locationtech.geomesa.utils.geotools.SimpleFeatureTypes
 import org.locationtech.geomesa.utils.text.WKTUtils
 import org.opengis.feature.simple.SimpleFeature
 import org.opengis.filter.spatial._
 import org.opengis.filter.temporal._
 import org.opengis.filter._
+import scala.language._
+
 
 import scala.util.Random
 
 class AttributeIndexingTest {
   implicit def sfToCreate(feature: SimpleFeature): CreateOrUpdate = CreateOrUpdate(Instant.now, feature)
-
-  val ff = CommonFactoryFinder.getFilterFactory2
+//
+//  implicit val ff = CommonFactoryFinder.getFilterFactory2
 
   val spec = "Who:String:index=full,What:Int,When:Date,*Where:Point:srid=4326,Why:String"
   val MIN_DATE = new DateTime(2014, 1, 1, 0, 0, 0, DateTimeZone.forID("UTC"))
@@ -117,7 +120,7 @@ class AttributeIndexingTest {
   def benchmark(f: Filter) {
     val (regularCount, t1) = time(lfc.getReaderForFilter(f).getIterator.size)
 
-    import org.locationtech.geomesa.filter._
+
     val cnf = rewriteFilterInCNF(f)
     val (cnfCount, tcnf) = time(lfc.getReaderForFilter(cnf.accept(sfv, null).asInstanceOf[Filter]).getIterator.size)
 
