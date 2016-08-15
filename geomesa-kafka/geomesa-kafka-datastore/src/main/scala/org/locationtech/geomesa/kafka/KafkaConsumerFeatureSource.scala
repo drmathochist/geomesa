@@ -124,10 +124,25 @@ trait KafkaConsumerFeatureCache extends QuadTreeFeatureStore {
       println("Could not extract geometries; running unoptimized")
       unoptimized(a)
     } else {
-      val envelope = geometries.head.getEnvelopeInternal
-      geometries.tail.foreach(g => envelope.expandToInclude(g.getEnvelopeInternal))
-      println(s"Calling out to the spatial index with envelope $envelope")
-      new DFR(sft, new DFI(spatialIndex.query(envelope, a.evaluate)))
+      val set = geometries.toSet
+
+      if (set.size == 1) {
+        val envelope = set.head.getEnvelopeInternal
+        new DFR(sft, new DFI(spatialIndex.query(envelope, a.evaluate)))
+      } else if (set.size == 2 && !set.head.overlaps(set.tail.head)) {
+        println("Got to disjoint geometries!")
+
+        new DFR(sft, new DFI(spatialIndex.query(set.head.getEnvelopeInternal, a.evaluate) ++
+          spatialIndex.query(set.tail.head.getEnvelopeInternal, a.evaluate)))
+      } else {
+        println("Handling the ")
+        val envelope = geometries.head.getEnvelopeInternal
+        geometries.tail.foreach(g => envelope.expandToInclude(g.getEnvelopeInternal))
+        geometries
+
+        println(s"Calling out to the spatial index with envelope $envelope")
+        new DFR(sft, new DFI(spatialIndex.query(envelope, a.evaluate)))
+      }
     }
   }
 
