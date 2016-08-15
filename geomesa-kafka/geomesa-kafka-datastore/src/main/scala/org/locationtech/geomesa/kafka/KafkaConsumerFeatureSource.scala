@@ -133,7 +133,7 @@ trait KafkaConsumerFeatureCache extends QuadTreeFeatureStore {
 
   def or(o: Or): FR = {
     println(s"Running an or query for $o")
-    val readers = o.getChildren.map{ f => println(s"Running filter separately for $f"); getReaderForFilter(f)}.map(_.getIterator)
+    val readers = o.getChildren.map { f => println(s"Running filter separately for $f"); getReaderForFilter(f)}.map(_.getIterator)
     val composed = readers.foldLeft(Iterator[SimpleFeature]())(_ ++ _)
     new DFR(sft, new DFI(composed))
   }
