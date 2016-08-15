@@ -132,7 +132,11 @@ trait KafkaConsumerFeatureCache extends QuadTreeFeatureStore {
       } else if (set.size == 2 && !set.head.overlaps(set.tail.head)) {
         println("Got to disjoint geometries!")
 
-        new DFR(sft, new DFI(spatialIndex.query(set.head.getEnvelopeInternal, a.evaluate) ++
+        val env1 = set.head.getEnvelopeInternal
+        val env2 = set.tail.head.getEnvelopeInternal
+
+        new DFR(sft, new DFI(
+          spatialIndex.query(set.head.getEnvelopeInternal, a.evaluate) ++
           spatialIndex.query(set.tail.head.getEnvelopeInternal, a.evaluate)))
       } else {
         println("Handling the ")

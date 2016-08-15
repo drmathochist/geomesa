@@ -166,22 +166,6 @@ class AttributeIndexingTest {
     //val (simpleCount, t2) = time(lfc.getReaderForFilter(f.accept(sfv, null).asInstanceOf[Filter]).getIterator.size)
     val (unoptimizedCount, t3) = time(lfc.unoptimized(f).getIterator.size)
 
-    def toC(f: Filter) = {
-      f match {
-        case or: Or => or.getChildren.toIndexedSeq
-        case _ => Seq(f)
-      }
-    }
-
-    // f is bigger than g
-    def contains(f: Filter, g: Filter): Boolean = {
-      val fc = toC(f)
-      val gc = toC(g)
-      fc.contains(gc)
-    }
-
-
-
     println(s"\nFilter: $f")
     if (regularCount == cnfCount && regularCount == dnfCount && regularCount == unoptimizedCount) {
       if (t3 < t1) {
@@ -196,9 +180,23 @@ class AttributeIndexingTest {
       println(s"All filters returned $regularCount")
 
     } else {
-      println(s"MISMATCHED Counts: Regular: $regularCount CNF: $tcnf DNF: $tdnf  Unoptimized: $unoptimizedCount")
+      println(s"MISMATCHED Counts: Regular: $regularCount CNF: $cnfCount DNF: $dnfCount  Unoptimized: $unoptimizedCount")
     }
     println(s"Timings: regular: $t1 CNF: $tcnf DNF: $tdnf unoptimized: $t3\n")
+  }
+
+  def toC(f: Filter) = {
+    f match {
+      case or: Or => or.getChildren.toIndexedSeq
+      case _ => Seq(f)
+    }
+  }
+
+  // f is bigger than g
+  def contains(f: Filter, g: Filter): Boolean = {
+    val fc = toC(f)
+    val gc = toC(g)
+    fc.contains(gc)
   }
 
 
