@@ -91,6 +91,11 @@
             <version>4.1</version>
         </dependency>
         <dependency>
+            <groupId>org.geotools.jdbc</groupId>
+            <artifactId>gt-jdbc-h2</artifactId>
+            <version>${gt.version}</version>
+        </dependency>
+        <dependency>
             <groupId>org.locationtech.geomesa</groupId>
             <artifactId>geomesa-feature-kryo</artifactId>
         </dependency>

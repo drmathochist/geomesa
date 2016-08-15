@@ -11,8 +11,7 @@ package org.locationtech.geomesa.kafka
 import com.google.common.base.Ticker
 import com.vividsolutions.jts.geom.Point
 import org.geotools.data.simple.SimpleFeatureStore
-import org.geotools.data.{DataStoreFinder, FeatureStore}
-import org.geotools.factory.CommonFactoryFinder
+import org.geotools.data.DataStoreFinder
 import org.geotools.feature.DefaultFeatureCollection
 import org.geotools.feature.simple.SimpleFeatureBuilder
 import org.geotools.filter.text.ecql.ECQL
