@@ -144,12 +144,12 @@ class AttributeIndexingTest {
   val bad1 = ff.or(whereAB, whereCD)
   val nice1 = ff.and(where, abcd)
 
-  val feats = (0 until 100000).map(buildFeature)
+  val feats = (0 until 1000000).map(buildFeature)
   feats.foreach{lfc.createOrUpdateFeature(_)}
 
   val sfv = new SimplifyingFilterVisitor
 
-  time(lfc.getReaderForFilter(where.accept(sfv, null).asInstanceOf[Filter]).getIterator.size)
+  //time(lfc.getReaderForFilter(where.accept(sfv, null).asInstanceOf[Filter]).getIterator.size)
 
 
   def benchmark(f: Filter) {
@@ -228,14 +228,28 @@ class AttributeIndexingTest {
     printBooleanInternal(f)
   }
 
-  val params = Map("dbtype" -> "h2", "database" -> "geotools")
-  val ds = DataStoreFinder.getDataStore(params)
+  val ds = DataStoreFinder.getDataStore(Map("dbtype" -> "h2gis", "database" -> "mem:db1"))
   ds.createSchema(sft)
   val fs = ds.getFeatureSource("test").asInstanceOf[SimpleFeatureStore]
   val fc = new DefaultFeatureCollection(sft.getTypeName, sft)
   fc.addAll(feats)
   fs.addFeatures(fc)
 
+  val sep = "\t"
+  println(Seq("h2_count", "lfc_count", "h2_time", "lfc_time", "query").mkString(sep))
+  for ( f <- filters ) {
+    val resH2  = time(fs.getFeatures(f).features.size)
+    val resLfc = time(lfc.getReaderForFilter(f).getIterator.size)
+    println(Seq(resH2._1, resLfc._1, resH2._2, resLfc._2, f.toString).mkString(sep))
+  }
+
+  //val params = Map("dbtype" -> "h2gis", "database" -> "/run/shm/mdz/test")
+  //val ds = DataStoreFinder.getDataStore(params)
+  //ds.createSchema(sft)
+  //val fs = ds.getFeatureSource("test").asInstanceOf[SimpleFeatureStore]
+  //val fc = new DefaultFeatureCollection(sft.getTypeName, sft)
+  //fc.addAll(feats)
+  //fs.addFeatures(fc)
 
 }
 
