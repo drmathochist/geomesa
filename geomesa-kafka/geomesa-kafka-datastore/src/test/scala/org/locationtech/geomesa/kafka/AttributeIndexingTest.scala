@@ -12,10 +12,13 @@ import com.google.common.base.Ticker
 import com.vividsolutions.jts.geom.Point
 import org.geotools.data.simple.SimpleFeatureStore
 import org.geotools.data.DataStoreFinder
+import org.geotools.data.{DataStoreFactorySpi, DataStoreFinder, FeatureStore}
+import org.geotools.factory.CommonFactoryFinder
 import org.geotools.feature.DefaultFeatureCollection
 import org.geotools.feature.simple.SimpleFeatureBuilder
 import org.geotools.filter.text.ecql.ECQL
 import org.geotools.filter.visitor.SimplifyingFilterVisitor
+import org.geotools.jdbc.JDBCDataStoreFactory
 import org.joda.time.{DateTime, DateTimeZone, Instant}
 import org.locationtech.geomesa.utils.geotools.Conversions._
 import org.locationtech.geomesa.filter._
@@ -25,6 +28,7 @@ import org.opengis.feature.simple.SimpleFeature
 import org.opengis.filter.spatial._
 import org.opengis.filter.temporal._
 import org.opengis.filter._
+import org.orbisgis.geoserver.h2gis.datastore.H2GISDataStoreFactory
 
 import scala.language._
 import scala.util.Random
@@ -250,6 +254,11 @@ class AttributeIndexingTest {
   //val fc = new DefaultFeatureCollection(sft.getTypeName, sft)
   //fc.addAll(feats)
   //fs.addFeatures(fc)
+
+  val params2 = Map("dbtype" -> "h2gis", "database" -> "./jnh")
+  val ds2 = DataStoreFinder.getDataStore(params2)
+  val dsf = new H2GISDataStoreFactory
+  dsf.asInstanceOf[DataStoreFactorySpi].createDataStore(params2)
 
 }
 
