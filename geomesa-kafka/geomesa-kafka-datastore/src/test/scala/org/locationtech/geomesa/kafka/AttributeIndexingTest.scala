@@ -78,6 +78,12 @@ class AttributeIndexingTest {
     (result, System.currentTimeMillis() - now)
   }
 
+  def timeUnit[Unit](a: => Unit) = {
+    val now = System.currentTimeMillis()
+    a
+    System.currentTimeMillis() - now
+  }
+
   implicit val ticker = Ticker.systemTicker()
   val lfc = new LiveFeatureCache(sft, None)
 
@@ -145,7 +151,7 @@ class AttributeIndexingTest {
   val nice1 = ff.and(where, abcd)
 
   val feats = (0 until 1000000).map(buildFeature)
-  feats.foreach{lfc.createOrUpdateFeature(_)}
+
 
   val sfv = new SimplifyingFilterVisitor
 
@@ -228,12 +234,18 @@ class AttributeIndexingTest {
     printBooleanInternal(f)
   }
 
+  val lfc_pop = timeUnit(feats.foreach{lfc.createOrUpdateFeature(_)})
+  println("lfc populate time (ms) = "+lfc_pop)
+
   val ds = DataStoreFinder.getDataStore(Map("dbtype" -> "h2gis", "database" -> "mem:db1"))
   ds.createSchema(sft)
   val fs = ds.getFeatureSource("test").asInstanceOf[SimpleFeatureStore]
-  val fc = new DefaultFeatureCollection(sft.getTypeName, sft)
-  fc.addAll(feats)
-  fs.addFeatures(fc)
+  val h2_pop = timeUnit({
+    val fc = new DefaultFeatureCollection(sft.getTypeName, sft)
+    fc.addAll(feats)
+    fs.addFeatures(fc)
+  })
+  println("h2 populate time (ms) = "+h2_pop)
 
   val sep = "\t"
   println(Seq("h2_count", "lfc_count", "h2_time", "lfc_time", "query").mkString(sep))
