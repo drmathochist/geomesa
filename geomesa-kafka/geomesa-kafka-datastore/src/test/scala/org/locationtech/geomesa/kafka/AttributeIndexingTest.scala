@@ -234,25 +234,31 @@ class AttributeIndexingTest {
     printBooleanInternal(f)
   }
 
-  val lfc_pop = timeUnit(feats.foreach{lfc.createOrUpdateFeature(_)})
-  println("lfc populate time (ms) = "+lfc_pop)
+  def benchmarkH2() = {
+    val lfc_pop = timeUnit(feats.foreach {
+      lfc.createOrUpdateFeature(_)
+    })
+    println("lfc populate time (ms) = " + lfc_pop)
 
-  val ds = DataStoreFinder.getDataStore(Map("dbtype" -> "h2gis", "database" -> "mem:db1"))
-  ds.createSchema(sft)
-  val fs = ds.getFeatureSource("test").asInstanceOf[SimpleFeatureStore]
-  val h2_pop = timeUnit({
-    val fc = new DefaultFeatureCollection(sft.getTypeName, sft)
-    fc.addAll(feats)
-    fs.addFeatures(fc)
-  })
-  println("h2 populate time (ms) = "+h2_pop)
+    val params = Map("dbtype" -> "h2gis", "database" -> "mem:db1")
+    //val params = Map("dbtype" -> "h2gis", "database" -> "/run/shm/mdz/test1")
+    val ds = DataStoreFinder.getDataStore(params)
+    ds.createSchema(sft)
+    val fs = ds.getFeatureSource("test").asInstanceOf[SimpleFeatureStore]
+    val h2_pop = timeUnit({
+      val fc = new DefaultFeatureCollection(sft.getTypeName, sft)
+      fc.addAll(feats)
+      fs.addFeatures(fc)
+    })
+    println("h2 populate time (ms) = " + h2_pop)
 
-  val sep = "\t"
-  println(Seq("h2_count", "lfc_count", "h2_time", "lfc_time", "query").mkString(sep))
-  for ( f <- filters ) {
-    val resH2  = time(fs.getFeatures(f).features.size)
-    val resLfc = time(lfc.getReaderForFilter(f).getIterator.size)
-    println(Seq(resH2._1, resLfc._1, resH2._2, resLfc._2, f.toString).mkString(sep))
+    val sep = "\t"
+    println(Seq("h2_count", "lfc_count", "h2_time", "lfc_time", "query").mkString(sep))
+    for (f <- filters) {
+      val resH2 = time(fs.getFeatures(f).features.size)
+      val resLfc = time(lfc.getReaderForFilter(f).getIterator.size)
+      println(Seq(resH2._1, resLfc._1, resH2._2, resLfc._2, f.toString).mkString(sep))
+    }
   }
 
   //val params = Map("dbtype" -> "h2gis", "database" -> "/run/shm/mdz/test")
