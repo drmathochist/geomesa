@@ -94,6 +94,10 @@ trait KafkaConsumerFeatureCache extends QuadTreeFeatureStore {
     }
   }
 
+  def size(): Int = {
+    features.size
+  }
+
   def getReaderForFilter(filter: Filter): FR =
     filter match {
       case f: IncludeFilter => include(f)

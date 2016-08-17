@@ -45,7 +45,7 @@ class LiveKafkaConsumerFeatureSource(e: ContentEntry,
                                     (implicit ticker: Ticker = Ticker.systemTicker())
   extends KafkaConsumerFeatureSource(e, sft, q) with Runnable with Closeable with LazyLogging {
 
-  private[kafka] val featureCache = new LiveFeatureCache(sft, expirationPeriod)
+  private[kafka] val featureCache: LiveFeatureCache = new LiveFeatureCacheGuava(sft, expirationPeriod)
 
   private lazy val contentState = entry.getState(getTransaction)
 
@@ -131,7 +131,7 @@ class LiveKafkaConsumerFeatureSource(e: ContentEntry,
             featureCache.createOrUpdateFeature(update)
           }
         case del: Delete            =>
-          fireEvent(KafkaFeatureEvent.removed(this, featureCache.features(del.id).sf))
+          fireEvent(KafkaFeatureEvent.removed(this, featureCache.getFeatureById(del.id)))
           featureCache.removeFeature(del)
         case clr: Clear             =>
           fireEvent(KafkaFeatureEvent.cleared(this))
@@ -213,62 +213,4 @@ object KafkaFeatureEvent {
       Filter.INCLUDE)
 }
 
-/** @param sft the [[SimpleFeatureType]]
-  * @param expirationPeriod the number of milliseconds after write to expire a feature or ``None`` to not
-  *                         expire
-  * @param ticker used to determine elapsed time for expiring entries
-  */
-class LiveFeatureCache(override val sft: SimpleFeatureType,
-                       expirationPeriod: Option[Long])(implicit ticker: Ticker)
-  extends KafkaConsumerFeatureCache with LazyLogging {
 
-  def cleanUp(): Unit = cache.cleanUp()
-
-  var spatialIndex: SpatialIndex[SimpleFeature] = newSpatialIndex()
-
-  val cache: Cache[String, FeatureHolder] = {
-    val cb = CacheBuilder.newBuilder().ticker(ticker)
-    expirationPeriod.foreach { ep =>
-      cb.expireAfterWrite(ep, TimeUnit.MILLISECONDS)
-        .removalListener(new RemovalListener[String, FeatureHolder] {
-          def onRemoval(removal: RemovalNotification[String, FeatureHolder]) = {
-            if (removal.getCause == RemovalCause.EXPIRED) {
-              logger.debug(s"Removing feature ${removal.getKey} due to expiration after ${ep}ms")
-              spatialIndex.remove(removal.getValue.env, removal.getValue.sf)
-            }
-          }
-        })
-    }
-    cb.build()
-  }
-
-  override val features: mutable.Map[String, FeatureHolder] = cache.asMap().asScala
-
-  def createOrUpdateFeature(update: CreateOrUpdate): Unit = {
-    val sf = update.feature
-    val id = sf.getID
-    val old = cache.getIfPresent(id)
-    if (old != null) {
-      spatialIndex.remove(old.env, old.sf)
-    }
-    val env = sf.geometry.getEnvelopeInternal
-    spatialIndex.insert(env, sf)
-    cache.put(id, FeatureHolder(sf, env))
-  }
-
-  def removeFeature(toDelete: Delete): Unit = {
-    val id = toDelete.id
-    val old = cache.getIfPresent(id)
-    if (old != null) {
-      spatialIndex.remove(old.env, old.sf)
-      cache.invalidate(id)
-    }
-  }
-
-  def clear(): Unit = {
-    cache.invalidateAll()
-    spatialIndex = newSpatialIndex()
-  }
-
-  private def newSpatialIndex() = new BucketIndex[SimpleFeature]
-}

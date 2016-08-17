@@ -98,7 +98,7 @@ class AttributeIndexingTest {
   }
 
   implicit val ticker = Ticker.systemTicker()
-  val lfc = new LiveFeatureCache(sft, None)
+  val lfc = new LiveFeatureCacheGuava(sft, None)
 
   val ab = ECQL.toFilter("Who IN('Addams', 'Bierce')")
   val cd = ECQL.toFilter("Who IN('Clemens', 'Damon')")
