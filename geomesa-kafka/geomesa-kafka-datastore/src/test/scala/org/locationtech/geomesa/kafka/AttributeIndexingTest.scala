@@ -9,6 +9,11 @@
 package org.locationtech.geomesa.kafka
 
 import com.google.common.base.Ticker
+import com.googlecode.cqengine.attribute.{SimpleAttribute, Attribute}
+import com.googlecode.cqengine.index.hash.HashIndex
+import com.googlecode.cqengine.index.navigable.NavigableIndex
+import com.googlecode.cqengine.query.option.QueryOptions
+import com.googlecode.cqengine.{IndexedCollection, ConcurrentIndexedCollection}
 import com.vividsolutions.jts.geom.Point
 import org.geotools.data.simple.SimpleFeatureStore
 import org.geotools.data.DataStoreFinder
@@ -37,6 +42,7 @@ import scala.collection.mutable
 
 class AttributeIndexingTest {
   implicit def sfToCreate(feature: SimpleFeature): CreateOrUpdate = CreateOrUpdate(Instant.now, feature)
+
   //
   //  implicit val ff = CommonFactoryFinder.getFilterFactory2
 
@@ -45,12 +51,13 @@ class AttributeIndexingTest {
   val seconds_per_year = 365L * 24L * 60L * 60L
   val string = "foo"
 
-  def randDate = MIN_DATE.plusSeconds( scala.math.round(scala.util.Random.nextFloat * seconds_per_year)).toDate
+  def randDate = MIN_DATE.plusSeconds(scala.math.round(scala.util.Random.nextFloat * seconds_per_year)).toDate
 
   val sft = SimpleFeatureTypes.createType("test", spec)
   val builder = new SimpleFeatureBuilder(sft)
 
   val names = Array("Addams", "Bierce", "Clemens", "Damon", "Evan", "Fred", "Goliath", "Harry")
+
   def getName: String = names(Random.nextInt(names.length))
 
   def getPoint: Point = {
@@ -69,7 +76,9 @@ class AttributeIndexingTest {
     builder.set("What", Random.nextInt(10))
     builder.set("When", randDate)
     builder.set("Where", getPoint)
-    if (Random.nextBoolean()) { builder.set("Why", string) }
+    if (Random.nextBoolean()) {
+      builder.set("Why", string)
+    }
     builder.buildFeature(i.toString)
   }
 
@@ -154,8 +163,9 @@ class AttributeIndexingTest {
   val bad1 = ff.or(whereAB, whereCD)
   val nice1 = ff.and(where, abcd)
 
-  val feats = (0 until 1000000).map(buildFeature)
-
+  val nFeats = 100000
+  val feats = (0 until nFeats).map(buildFeature)
+  val featsUpdate = (0 until nFeats).map(buildFeature)
 
   val sfv = new SimplifyingFilterVisitor
 
@@ -238,12 +248,79 @@ class AttributeIndexingTest {
     printBooleanInternal(f)
   }
 
-  def benchmarkH2() = {
+  def mean(values: Seq[Long]): Double = {
+    values.sum.toDouble / values.length.toDouble
+  }
+
+  def sd(values: Seq[Long]): Double = {
+    val mn = mean(values)
+    math.sqrt(
+      values.map(x => math.pow(x.toDouble - mn, 2.0)).sum /
+        (values.length - 1).toDouble)
+  }
+
+  def fd(value: Double): String = {
+    "%.1f".format(value)
+  }
+
+  def runQueries(n: Int, genIter: Filter => Long) = {
+    println(Seq(
+      "c_max",
+      "c_min",
+      "t_max",
+      "t_mean",
+      "t_sd",
+      "t_min",
+      "filter"
+    ).mkString("\t"))
+    for (f <- filters) {
+      val timeRes = (1 to n).map(i => time(genIter(f)))
+      val counts = timeRes.map(_._1)
+      val times = timeRes.map(_._2)
+      println(Seq(
+        counts.max,
+        counts.min,
+        times.max,
+        fd(mean(times)),
+        fd(sd(times)),
+        times.min,
+        f.toString
+      ).mkString("\t"))
+    }
+  }
+
+  // approx. equivalent of LiveFeatureCache.createOrUpdateFeature()
+  // for a JDBCFeatureStore
+  val attrNames = sft.getAttributeDescriptors.map(_.getLocalName).toArray
+  def createOrUpdateFeature(fs: SimpleFeatureStore, o: CreateOrUpdate): Unit = {
+    val sf = o.feature
+    val filter = ff.id(sf.getIdentifier)
+    if (fs.getFeatures(filter).size > 0) {
+      val attrValues = attrNames.toList.map(sf.getAttribute(_)).toArray
+      fs.modifyFeatures(attrNames, attrValues, filter)
+    }
+    else {
+      val fc = new DefaultFeatureCollection(sft.getTypeName, sft)
+      fc.add(sf)
+      fs.addFeatures(fc)
+    }
+  }
+
+  def benchmarkLFC() = {
     val lfc_pop = timeUnit(feats.foreach {
       lfc.createOrUpdateFeature(_)
     })
     println("lfc populate time (ms) = " + lfc_pop)
 
+    runQueries(11, f => lfc.getReaderForFilter(f).getIterator.size)
+
+    val lfc_repop = timeUnit(featsUpdate.foreach {
+      lfc.createOrUpdateFeature(_)
+    })
+    println("lfc repopulate time (ms) = " + lfc_repop)
+  }
+
+  def benchmarkH2() = {
     val params = Map("dbtype" -> "h2gis", "database" -> "mem:db1")
     //val params = Map("dbtype" -> "h2gis", "database" -> "/run/shm/mdz/test1")
     val ds = DataStoreFinder.getDataStore(params)
@@ -256,6 +333,20 @@ class AttributeIndexingTest {
     })
     println("h2 populate time (ms) = " + h2_pop)
 
+    // run queries
+    runQueries(11, f => fs.getFeatures(f).features.size)
+
+    //update some of the features
+    val h2_repop = timeUnit(for (sf <- featsUpdate) {
+      createOrUpdateFeature(fs, sf)
+    })
+    println("h2 repopulate time (ms) = " + h2_repop)
+
+    // run queries again
+    runQueries(11, f => fs.getFeatures(f).features.size)
+    ds.dispose()
+  }
+  /*
     val sep = "\t"
     println(Seq("h2_count", "lfc_count", "h2_time", "lfc_time", "query").mkString(sep))
     for (f <- filters) {
@@ -263,21 +354,27 @@ class AttributeIndexingTest {
       val resLfc = time(lfc.getReaderForFilter(f).getIterator.size)
       println(Seq(resH2._1, resLfc._1, resH2._2, resLfc._2, f.toString).mkString(sep))
     }
+  }*/
+
+  // CQEngine
+  def cqengine() = {
+    val WHO_ATTR: Attribute[SimpleFeature, String] = new SimpleAttribute[SimpleFeature, String]("Who") {
+      override def getValue(sf: SimpleFeature, queryOptions: QueryOptions): String = {
+        sf.getAttribute("Who").asInstanceOf[String]
+      }
+    }
+    val WHAT_ATTR: Attribute[SimpleFeature, Integer] = new SimpleAttribute[SimpleFeature, Integer]("What") {
+      override def getValue(sf: SimpleFeature, queryOptions: QueryOptions): Integer = {
+        sf.getAttribute("What").asInstanceOf[Integer]
+      }
+    }
+
+    val cqcache: IndexedCollection[SimpleFeature] = new ConcurrentIndexedCollection[SimpleFeature]()
+    cqcache.addIndex(HashIndex.onAttribute(WHO_ATTR))
+    cqcache.addIndex(NavigableIndex.onAttribute(WHAT_ATTR))
+    println(time(cqcache.addAll(feats)))
+
   }
-
-  //val params = Map("dbtype" -> "h2gis", "database" -> "/run/shm/mdz/test")
-  //val ds = DataStoreFinder.getDataStore(params)
-  //ds.createSchema(sft)
-  //val fs = ds.getFeatureSource("test").asInstanceOf[SimpleFeatureStore]
-  //val fc = new DefaultFeatureCollection(sft.getTypeName, sft)
-  //fc.addAll(feats)
-  //fs.addFeatures(fc)
-
-  val params2 = Map("dbtype" -> "h2gis", "database" -> "./jnh")
-  val ds2 = DataStoreFinder.getDataStore(params2)
-  val dsf = new H2GISDataStoreFactory
-  dsf.asInstanceOf[DataStoreFactorySpi].createDataStore(params2)
-
 }
 
 
