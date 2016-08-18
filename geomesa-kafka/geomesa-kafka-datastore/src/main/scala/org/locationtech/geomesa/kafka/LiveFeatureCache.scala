@@ -97,3 +97,22 @@ class LiveFeatureCacheGuava(override val sft: SimpleFeatureType,
 
   private def newSpatialIndex() = new BucketIndex[SimpleFeature]
 }
+
+class LiveFeatureCacheCQEngine(val sft: SimpleFeatureType)
+  extends LiveFeatureCache with LazyLogging {
+  override def cleanUp(): Unit = ???
+
+  override def createOrUpdateFeature(update: CreateOrUpdate): Unit = ???
+
+  override def getFeatureById(id: String): FeatureHolder = ???
+
+  override def removeFeature(toDelete: Delete): Unit = ???
+
+  override def clear(): Unit = ???
+
+  override def size(): Int = ???
+
+  override def size(filter: Filter): Int = ???
+
+  override def getReaderForFilter(filter: Filter): FR = ???
+}

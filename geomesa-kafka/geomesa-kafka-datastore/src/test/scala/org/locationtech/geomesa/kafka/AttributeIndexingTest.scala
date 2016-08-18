@@ -13,7 +13,9 @@ import com.googlecode.cqengine.attribute.{SimpleAttribute, Attribute}
 import com.googlecode.cqengine.index.hash.HashIndex
 import com.googlecode.cqengine.index.navigable.NavigableIndex
 import com.googlecode.cqengine.query.option.QueryOptions
+import com.googlecode.cqengine.resultset.ResultSet
 import com.googlecode.cqengine.{IndexedCollection, ConcurrentIndexedCollection}
+import com.googlecode.cqengine.query.{Query, QueryFactory}
 import com.vividsolutions.jts.geom.Point
 import org.geotools.data.simple.SimpleFeatureStore
 import org.geotools.data.DataStoreFinder
@@ -27,9 +29,10 @@ import org.geotools.jdbc.JDBCDataStoreFactory
 import org.joda.time.{DateTime, DateTimeZone, Instant}
 import org.locationtech.geomesa.utils.geotools.Conversions._
 import org.locationtech.geomesa.filter._
-import org.locationtech.geomesa.utils.geotools.SimpleFeatureTypes
+import org.locationtech.geomesa.utils.geotools.{FR, DFR, DFI, SimpleFeatureTypes}
 import org.locationtech.geomesa.utils.text.WKTUtils
-import org.opengis.feature.simple.SimpleFeature
+import org.opengis.feature.simple.{SimpleFeatureType, SimpleFeature}
+import org.opengis.filter.identity.FeatureId
 import org.opengis.filter.spatial._
 import org.opengis.filter.temporal._
 import org.opengis.filter._
@@ -39,6 +42,8 @@ import scala.language._
 import scala.util.Random
 import scala.collection.JavaConversions._
 import scala.collection.mutable
+
+
 
 class AttributeIndexingTest {
   implicit def sfToCreate(feature: SimpleFeature): CreateOrUpdate = CreateOrUpdate(Instant.now, feature)
@@ -141,7 +146,8 @@ class AttributeIndexingTest {
   val badOr = ff.or(geoJustAB, geoJustCD)
 
 
-  val filters = Seq(ab, cd, w14, where, justified, justifiedAB, justifiedCD, just, justBBOX, justBBOX2, bbox2)
+  //val filters = Seq(ab, cd, w14, where, justified, justifiedAB, justifiedCD, just, justBBOX, justBBOX2, bbox2)
+  val filters = Seq(ab, cd)
 
   // Easier filters
   val geoCD = ff.and(cd, bbox2)
@@ -163,7 +169,7 @@ class AttributeIndexingTest {
   val bad1 = ff.or(whereAB, whereCD)
   val nice1 = ff.and(where, abcd)
 
-  val nFeats = 100000
+  val nFeats = 1000000
   val feats = (0 until nFeats).map(buildFeature)
   val featsUpdate = (0 until nFeats).map(buildFeature)
 
@@ -263,7 +269,7 @@ class AttributeIndexingTest {
     "%.1f".format(value)
   }
 
-  def runQueries(n: Int, genIter: Filter => Long) = {
+  def runQueries[T](n: Int, genIter: T => Long, filters: Seq[T]) = {
     println(Seq(
       "c_max",
       "c_min",
@@ -306,18 +312,24 @@ class AttributeIndexingTest {
     }
   }
 
+  def countPopulate(count: Int, time: Long): String = {
+    "%d in %d ms (%.1f /ms)".format(count, time, count.toDouble / time)
+  }
+
   def benchmarkLFC() = {
     val lfc_pop = timeUnit(feats.foreach {
       lfc.createOrUpdateFeature(_)
     })
-    println("lfc populate time (ms) = " + lfc_pop)
+    println("lfc populate: "+countPopulate(feats.size, lfc_pop))
 
-    runQueries(11, f => lfc.getReaderForFilter(f).getIterator.size)
+    runQueries[Filter](11, f => lfc.getReaderForFilter(f).getIterator.size, filters)
 
     val lfc_repop = timeUnit(featsUpdate.foreach {
       lfc.createOrUpdateFeature(_)
     })
-    println("lfc repopulate time (ms) = " + lfc_repop)
+    println("lfc repopulate: "+countPopulate(featsUpdate.size, lfc_repop))
+
+    runQueries[Filter](11, f => lfc.getReaderForFilter(f).getIterator.size, filters)
   }
 
   def benchmarkH2() = {
@@ -334,7 +346,7 @@ class AttributeIndexingTest {
     println("h2 populate time (ms) = " + h2_pop)
 
     // run queries
-    runQueries(11, f => fs.getFeatures(f).features.size)
+    runQueries[Filter](11, f => fs.getFeatures(f).features.size, filters)
 
     //update some of the features
     val h2_repop = timeUnit(for (sf <- featsUpdate) {
@@ -343,37 +355,73 @@ class AttributeIndexingTest {
     println("h2 repopulate time (ms) = " + h2_repop)
 
     // run queries again
-    runQueries(11, f => fs.getFeatures(f).features.size)
+    runQueries[Filter](11, f => fs.getFeatures(f).features.size, filters)
     ds.dispose()
   }
-  /*
-    val sep = "\t"
-    println(Seq("h2_count", "lfc_count", "h2_time", "lfc_time", "query").mkString(sep))
-    for (f <- filters) {
-      val resH2 = time(fs.getFeatures(f).features.size)
-      val resLfc = time(lfc.getReaderForFilter(f).getIterator.size)
-      println(Seq(resH2._1, resLfc._1, resH2._2, resLfc._2, f.toString).mkString(sep))
-    }
-  }*/
 
-  // CQEngine
-  def cqengine() = {
-    val WHO_ATTR: Attribute[SimpleFeature, String] = new SimpleAttribute[SimpleFeature, String]("Who") {
-      override def getValue(sf: SimpleFeature, queryOptions: QueryOptions): String = {
-        sf.getAttribute("Who").asInstanceOf[String]
+  val cqholder = new CQEngineTest(sft)
+  val cq_pop = timeUnit({
+    for (sf <- feats) cqholder.createOrUpdateFeature(sf)
+  })
+  println(s"cq populate: ${feats.size} in $cq_pop ms (${feats.size.toDouble / cq_pop}/ms)" )
+  //println(s"cache size: ${cqholder.cqcache.size}")
+
+  runQueries[Query[SimpleFeature]](11, q => cqholder.getFeatures(q).getIterator.size, cqholder.filters)
+
+  val cq_repop = timeUnit({
+    for (sf <- featsUpdate) cqholder.createOrUpdateFeature(sf)
+  })
+  println(s"cq repopulate = ${featsUpdate.size} in $cq_repop ms (${featsUpdate.size.toDouble / cq_repop}/ms)" )
+  println(s"cache size = ${cqholder.cqcache.size}")
+
+  runQueries[Query[SimpleFeature]](11, q => cqholder.getFeatures(q).getIterator.size, cqholder.filters)
+}
+
+class CQEngineTest(sft: SimpleFeatureType) {
+  val ID: Attribute[SimpleFeature, String] = new SimpleAttribute[SimpleFeature, String]("Id") {
+    override def getValue(sf: SimpleFeature, queryOptions: QueryOptions): String = {
+      sf.getID
+    }
+  }
+
+  val WHO_ATTR: Attribute[SimpleFeature, String] = new SimpleAttribute[SimpleFeature, String]("Who") {
+    override def getValue(sf: SimpleFeature, queryOptions: QueryOptions): String = {
+      sf.getAttribute("Who").asInstanceOf[String]
+    }
+  }
+  val WHAT_ATTR: Attribute[SimpleFeature, Integer] = new SimpleAttribute[SimpleFeature, Integer]("What") {
+    override def getValue(sf: SimpleFeature, queryOptions: QueryOptions): Integer = {
+      sf.getAttribute("What").asInstanceOf[Integer]
+    }
+  }
+
+  import QueryFactory._
+
+  val ab = or(equal(WHO_ATTR, "Addams"), equal(WHO_ATTR, "Bierce"))
+  val cd = or(equal(WHO_ATTR, "Clemens"), equal(WHO_ATTR, "Damon"))
+  //val w14 = or(equal(WHAT_ATTR, 1), equal(WHAT_ATTR, 2), equal(WHAT_ATTR, 3), equal(WHAT_ATTR, 4))
+
+  val filters = Seq(ab, cd)
+
+  val cqcache: IndexedCollection[SimpleFeature] = new ConcurrentIndexedCollection[SimpleFeature]()
+  cqcache.addIndex(HashIndex.onAttribute(ID))
+  cqcache.addIndex(HashIndex.onAttribute(WHO_ATTR))
+  cqcache.addIndex(NavigableIndex.onAttribute(WHAT_ATTR))
+
+  def createOrUpdateFeature(fNew: CreateOrUpdate) = {
+    val sf = fNew.feature
+    val queryId = QueryFactory.equal(ID, sf.getID)
+    val res = cqcache.retrieve(queryId)
+    if (res.size > 0) {
+      for (holder <- res.iterator) {
+        cqcache.remove(holder)
       }
     }
-    val WHAT_ATTR: Attribute[SimpleFeature, Integer] = new SimpleAttribute[SimpleFeature, Integer]("What") {
-      override def getValue(sf: SimpleFeature, queryOptions: QueryOptions): Integer = {
-        sf.getAttribute("What").asInstanceOf[Integer]
-      }
-    }
+    cqcache.add(sf)
+  }
 
-    val cqcache: IndexedCollection[SimpleFeature] = new ConcurrentIndexedCollection[SimpleFeature]()
-    cqcache.addIndex(HashIndex.onAttribute(WHO_ATTR))
-    cqcache.addIndex(NavigableIndex.onAttribute(WHAT_ATTR))
-    println(time(cqcache.addAll(feats)))
-
+  def getFeatures(query: Query[SimpleFeature]): FR = {
+    new DFR(sft, new DFI(cqcache.retrieve(query).iterator))
   }
 }
 
