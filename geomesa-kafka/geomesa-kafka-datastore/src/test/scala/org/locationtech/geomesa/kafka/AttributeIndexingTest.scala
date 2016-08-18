@@ -8,15 +8,18 @@
 
 package org.locationtech.geomesa.kafka
 
+import java.io.Serializable
+import java.util.UUID
+
 import com.google.common.base.Ticker
-import com.googlecode.cqengine.attribute.{SimpleAttribute, Attribute}
+import com.googlecode.cqengine.attribute.{Attribute, SimpleAttribute}
 import com.googlecode.cqengine.index.hash.HashIndex
 import com.googlecode.cqengine.index.navigable.NavigableIndex
 import com.googlecode.cqengine.query.option.QueryOptions
 import com.googlecode.cqengine.resultset.ResultSet
-import com.googlecode.cqengine.{IndexedCollection, ConcurrentIndexedCollection}
+import com.googlecode.cqengine.{ConcurrentIndexedCollection, IndexedCollection}
 import com.googlecode.cqengine.query.{Query, QueryFactory}
-import com.vividsolutions.jts.geom.Point
+import com.vividsolutions.jts.geom.{Geometry, Point}
 import org.geotools.data.simple.SimpleFeatureStore
 import org.geotools.data.DataStoreFinder
 import org.geotools.data.{DataStoreFactorySpi, DataStoreFinder, FeatureStore}
@@ -29,9 +32,9 @@ import org.geotools.jdbc.JDBCDataStoreFactory
 import org.joda.time.{DateTime, DateTimeZone, Instant}
 import org.locationtech.geomesa.utils.geotools.Conversions._
 import org.locationtech.geomesa.filter._
-import org.locationtech.geomesa.utils.geotools.{FR, DFR, DFI, SimpleFeatureTypes}
+import org.locationtech.geomesa.utils.geotools.{DFI, DFR, FR, SimpleFeatureTypes}
 import org.locationtech.geomesa.utils.text.WKTUtils
-import org.opengis.feature.simple.{SimpleFeatureType, SimpleFeature}
+import org.opengis.feature.simple.{SimpleFeature, SimpleFeatureType}
 import org.opengis.filter.identity.FeatureId
 import org.opengis.filter.spatial._
 import org.opengis.filter.temporal._
@@ -42,6 +45,7 @@ import scala.language._
 import scala.util.Random
 import scala.collection.JavaConversions._
 import scala.collection.mutable
+import scala.reflect.ClassTag
 
 
 
@@ -423,6 +427,58 @@ class CQEngineTest(sft: SimpleFeatureType) {
   def getFeatures(query: Query[SimpleFeature]): FR = {
     new DFR(sft, new DFI(cqcache.retrieve(query).iterator))
   }
+
+  sft.getAttributeDescriptors.find(_.equals("Who"))
+
+  val cqattrs = sft.getAttributeDescriptors.map { ad =>
+      val binding: Class[_] = ad.getType.getBinding
+    bindingToSimpleFeatureAttribute(binding, ad.getLocalName)
+  }
+  
+  def bindingToSimpleFeatureAttribute[A](binding: Class[_], name: String) = {
+    binding  match {
+      case c if classOf[java.lang.String].isAssignableFrom(c) => new SimpleFeatureAttribute[String](name)
+      case c if classOf[java.lang.Integer].isAssignableFrom(c) => new SimpleFeatureAttribute[Integer](name)
+      case c if classOf[java.lang.Long].isAssignableFrom(c) => new SimpleFeatureAttribute[java.lang.Long](name)
+      case c if classOf[java.lang.Float].isAssignableFrom(c) => new SimpleFeatureAttribute[java.lang.Float](name)
+      case c if classOf[java.lang.Double].isAssignableFrom(c) => new SimpleFeatureAttribute[java.lang.Double](name)
+      case c if classOf[java.lang.Boolean].isAssignableFrom(c) => new SimpleFeatureAttribute[java.lang.Boolean](name)
+      case c if classOf[java.util.Date].isAssignableFrom(c) => new SimpleFeatureAttribute[java.util.Date](name)
+      case c if classOf[UUID].isAssignableFrom(c) => new SimpleFeatureAttribute[UUID](name)
+      case c if classOf[Geometry].isAssignableFrom(c) => new SimpleFeatureAttribute[Geometry](name)
+    }
+  }
+
+  def bindingDispatches(binding: Class[_], name: String) = {
+    binding match {
+      case c if classOf[java.lang.String].isAssignableFrom(c) => new SimpleFeatureStringAttribute(name)
+      case c if classOf[java.lang.Integer].isAssignableFrom(c) => new SimpleFeatureIntegerAttribute(name)
+    }
+  }
+  
+}
+import scala.reflect._
+import scala.reflect.runtime.universe._
+
+
+// Todo optimize by using field number rather than name.
+class SimpleFeatureAttribute[A](name: String)(implicit ct: ClassTag[A]) extends
+  SimpleAttribute[SimpleFeature, A](classOf[SimpleFeature], ct.runtimeClass.asInstanceOf[Class[A]], name) {
+  override def getValue(feature: SimpleFeature, queryOptions: QueryOptions): A = {
+    feature.getAttribute(name).asInstanceOf[A]
+  }
+}
+
+class SimpleFeatureIntegerAttribute(name: String) extends
+  SimpleAttribute[SimpleFeature, Integer](classOf[SimpleFeature], classOf[Integer], name) {
+  override def getValue(feature: SimpleFeature, queryOptions: QueryOptions): Integer =
+    feature.getAttribute(name).asInstanceOf[Integer]
+}
+
+class SimpleFeatureStringAttribute(name: String) extends
+  SimpleAttribute[SimpleFeature, String](classOf[SimpleFeature], classOf[String], name) {
+  override def getValue(feature: SimpleFeature, queryOptions: QueryOptions): String =
+    feature.getAttribute(name).asInstanceOf[String]
 }
 
 
