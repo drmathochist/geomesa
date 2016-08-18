@@ -66,11 +66,16 @@
             <groupId>org.geotools</groupId>
             <artifactId>gt-data</artifactId>
         </dependency>
+
+        <!-- testing different in-memory databases -->
+        <!-- GeoTools H2 -->
         <dependency>
             <groupId>org.geotools.jdbc</groupId>
             <artifactId>gt-jdbc-h2</artifactId>
             <version>${gt.version}</version>
         </dependency>
+
+        <!-- GeoTools H2GIS (h2gis-gs) -->
         <dependency>
             <groupId>org.orbisgis</groupId>
             <artifactId>h2gis-gs</artifactId>
@@ -79,20 +84,27 @@
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
-            <version>1.4.192</version>
+            <version>1.4.190</version>
         </dependency>
         <dependency>
             <groupId>org.orbisgis</groupId>
             <artifactId>h2spatial-ext</artifactId>
             <version>1.2.3</version>
         </dependency>
+        <dependency>
+            <groupId>org.orbisgis</groupId>
+            <artifactId>spatial-utilities</artifactId>
+            <version>1.2.3</version>
+        </dependency>
 
+        <!-- GeoTools Spatialite -->
         <dependency>
             <groupId>org.geotools.jdbc</groupId>
             <artifactId>gt-jdbc-spatialite</artifactId>
             <version>${gt.version}</version>
         </dependency>
 
+        <!-- CQEngine -->
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
@@ -105,43 +117,14 @@
         <dependency>
             <groupId>com.googlecode.cqengine</groupId>
             <artifactId>cqengine</artifactId>
-            <version>2.7.0</version>
+            <version>2.7.1</version>
         </dependency>
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-collections4</artifactId>
             <version>4.1</version>
         </dependency>
-        <!--<dependency>
-            <groupId>org.geotools.jdbc</groupId>
-            <artifactId>gt-jdbc-h2</artifactId>
-            <version>${gt.version}</version>
-        </dependency>-->
-        <dependency>
-            <groupId>org.orbisgis</groupId>
-            <artifactId>h2gis-gs</artifactId>
-            <version>1.0.1</version>
-        </dependency>
-        <dependency>
-            <groupId>org.orbisgis</groupId>
-            <artifactId>h2spatial-ext</artifactId>
-            <version>1.2.4</version>
-        </dependency>
-        <dependency>
-            <groupId>org.orbisgis</groupId>
-            <artifactId>spatial-utilities</artifactId>
-            <version>1.2.4</version>
-        </dependency>
-        <dependency>
-            <groupId>com.h2database</groupId>
-            <artifactId>h2</artifactId>
-            <version>1.4.190</version>
-        </dependency>
-        <dependency>
-            <groupId>com.googlecode.cqengine</groupId>
-            <artifactId>cqengine</artifactId>
-            <version>2.7.1</version>
-        </dependency>
+
         <dependency>
             <groupId>org.locationtech.geomesa</groupId>
             <artifactId>geomesa-feature-kryo</artifactId>
