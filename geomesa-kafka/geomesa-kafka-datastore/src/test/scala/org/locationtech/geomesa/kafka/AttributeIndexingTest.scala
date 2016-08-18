@@ -51,7 +51,7 @@ class AttributeIndexingTest {
   //
   //  implicit val ff = CommonFactoryFinder.getFilterFactory2
 
-  val spec = "Who:String:index=full,What:Int,When:Date,*Where:Point:srid=4326,Why:String"
+  val spec = "Who:String:index=full,What:Integer,When:Date,*Where:Point:srid=4326,Why:String"
   val MIN_DATE = new DateTime(2014, 1, 1, 0, 0, 0, DateTimeZone.forID("UTC"))
   val seconds_per_year = 365L * 24L * 60L * 60L
   val string = "foo"
@@ -107,6 +107,7 @@ class AttributeIndexingTest {
 
   val ab = ECQL.toFilter("Who IN('Addams', 'Bierce')")
   val cd = ECQL.toFilter("Who IN('Clemens', 'Damon')")
+  val ab_cd = ff.and(ab, cd)
 
   val w14 = ECQL.toFilter("What = 1 OR What = 2 OR What = 3 or What = 4")
 
@@ -147,7 +148,8 @@ class AttributeIndexingTest {
 
 
   //val filters = Seq(ab, cd, w14, where, justified, justifiedAB, justifiedCD, just, justBBOX, justBBOX2, bbox2)
-  val filters = Seq(ab, cd)
+  val ab_w14 = ff.and(ab, w14)
+  val filters = Seq(ab, cd, w14, ab_w14)
 
   // Easier filters
   val geoCD = ff.and(cd, bbox2)
@@ -322,7 +324,7 @@ class AttributeIndexingTest {
     })
     println("lfc populate: "+countPopulate(feats.size, lfc_pop))
 
-    runQueries[Filter](11, f => lfc.getReaderForFilter(f).getIterator.size, filters)
+    //runQueries[Filter](11, f => lfc.getReaderForFilter(f).getIterator.size, filters)
 
     val lfc_repop = timeUnit(featsUpdate.foreach {
       lfc.createOrUpdateFeature(_)
@@ -359,22 +361,23 @@ class AttributeIndexingTest {
     ds.dispose()
   }
 
-  val cqholder = new CQEngineTest(sft)
-  val cq_pop = timeUnit({
-    for (sf <- feats) cqholder.createOrUpdateFeature(sf)
-  })
-  println(s"cq populate: ${feats.size} in $cq_pop ms (${feats.size.toDouble / cq_pop}/ms)" )
-  //println(s"cache size: ${cqholder.cqcache.size}")
+  def benchmarkCQ() = {
+    val cqholder = new CQEngineTest(sft)
+    val cq_pop = timeUnit({
+      for (sf <- feats) cqholder.createOrUpdateFeature(sf)
+    })
+    println(s"cq populate: ${feats.size} in $cq_pop ms (${feats.size.toDouble / cq_pop}/ms)")
+    //println(s"cache size: ${cqholder.cqcache.size}")
 
-  runQueries[Query[SimpleFeature]](11, q => cqholder.getFeatures(q).getIterator.size, cqholder.filters)
+    //runQueries[Query[SimpleFeature]](11, q => cqholder.getFeatures(q).getIterator.size, cqholder.filters)
 
-  val cq_repop = timeUnit({
-    for (sf <- featsUpdate) cqholder.createOrUpdateFeature(sf)
-  })
-  println(s"cq repopulate = ${featsUpdate.size} in $cq_repop ms (${featsUpdate.size.toDouble / cq_repop}/ms)" )
-  println(s"cache size = ${cqholder.cqcache.size}")
+    val cq_repop = timeUnit({
+      for (sf <- featsUpdate) cqholder.createOrUpdateFeature(sf)
+    })
+    println(s"cq repopulate = ${featsUpdate.size} in $cq_repop ms (${featsUpdate.size.toDouble / cq_repop}/ms)")
 
-  runQueries[Query[SimpleFeature]](11, q => cqholder.getFeatures(q).getIterator.size, cqholder.filters)
+    runQueries[Query[SimpleFeature]](11, q => cqholder.getFeatures(q).getIterator.size, cqholder.filters)
+  }
 }
 
 class CQEngineTest(sft: SimpleFeatureType) {
@@ -399,9 +402,15 @@ class CQEngineTest(sft: SimpleFeatureType) {
 
   val ab = or(equal(WHO_ATTR, "Addams"), equal(WHO_ATTR, "Bierce"))
   val cd = or(equal(WHO_ATTR, "Clemens"), equal(WHO_ATTR, "Damon"))
-  //val w14 = or(equal(WHAT_ATTR, 1), equal(WHAT_ATTR, 2), equal(WHAT_ATTR, 3), equal(WHAT_ATTR, 4))
+  //val ab_cd = and(ab, cd)
+  val w14 = or(
+    equal[SimpleFeature, Integer](WHAT_ATTR, 1),
+    equal[SimpleFeature, Integer](WHAT_ATTR, 2),
+    equal[SimpleFeature, Integer](WHAT_ATTR, 3),
+    equal[SimpleFeature, Integer](WHAT_ATTR, 4))
+  val ab_w14 = and(ab, w14)
 
-  val filters = Seq(ab, cd)
+  val filters = Seq(ab, cd, w14, ab_w14)
 
   val cqcache: IndexedCollection[SimpleFeature] = new ConcurrentIndexedCollection[SimpleFeature]()
   cqcache.addIndex(HashIndex.onAttribute(ID))
