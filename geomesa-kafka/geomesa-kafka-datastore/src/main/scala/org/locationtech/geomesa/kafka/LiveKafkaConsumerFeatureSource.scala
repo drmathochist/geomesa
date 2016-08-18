@@ -131,7 +131,7 @@ class LiveKafkaConsumerFeatureSource(e: ContentEntry,
             featureCache.createOrUpdateFeature(update)
           }
         case del: Delete            =>
-          fireEvent(KafkaFeatureEvent.removed(this, featureCache.getFeatureById(del.id)))
+          fireEvent(KafkaFeatureEvent.removed(this, featureCache.getFeatureById(del.id).sf))
           featureCache.removeFeature(del)
         case clr: Clear             =>
           fireEvent(KafkaFeatureEvent.cleared(this))

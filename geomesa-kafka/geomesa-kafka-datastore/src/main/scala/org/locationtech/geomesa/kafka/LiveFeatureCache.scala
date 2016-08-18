@@ -30,7 +30,7 @@ trait LiveFeatureCache {
 
   def size(filter: Filter): Int
 
-  def getFeatureById(id: String): SimpleFeature
+  def getFeatureById(id: String): FeatureHolder
 
   def getReaderForFilter(filter: Filter): FR
 }
@@ -93,7 +93,7 @@ class LiveFeatureCacheGuava(override val sft: SimpleFeatureType,
     spatialIndex = newSpatialIndex()
   }
 
-  override def getFeatureById(id: String): SimpleFeature = features(id).sf
+  override def getFeatureById(id: String): FeatureHolder = cache.getIfPresent(id)
 
   private def newSpatialIndex() = new BucketIndex[SimpleFeature]
 }
