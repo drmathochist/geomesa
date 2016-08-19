@@ -8,46 +8,38 @@
 
 package org.locationtech.geomesa.kafka
 
-import java.io.Serializable
 import java.util.UUID
 
 import com.google.common.base.Ticker
 import com.googlecode.cqengine.attribute.{Attribute, SimpleAttribute}
+import com.googlecode.cqengine.index.geo.GeoIndex
 import com.googlecode.cqengine.index.hash.HashIndex
 import com.googlecode.cqengine.index.navigable.NavigableIndex
 import com.googlecode.cqengine.query.option.QueryOptions
-import com.googlecode.cqengine.resultset.ResultSet
-import com.googlecode.cqengine.{ConcurrentIndexedCollection, IndexedCollection}
 import com.googlecode.cqengine.query.{Query, QueryFactory}
+import com.googlecode.cqengine.{ConcurrentIndexedCollection, IndexedCollection}
 import com.vividsolutions.jts.geom.{Geometry, Point}
-import org.geotools.data.simple.SimpleFeatureStore
 import org.geotools.data.DataStoreFinder
-import org.geotools.data.{DataStoreFactorySpi, DataStoreFinder, FeatureStore}
-import org.geotools.factory.CommonFactoryFinder
+import org.geotools.data.simple.SimpleFeatureStore
 import org.geotools.feature.DefaultFeatureCollection
 import org.geotools.feature.simple.SimpleFeatureBuilder
 import org.geotools.filter.text.ecql.ECQL
 import org.geotools.filter.visitor.SimplifyingFilterVisitor
-import org.geotools.jdbc.JDBCDataStoreFactory
 import org.joda.time.{DateTime, DateTimeZone, Instant}
-import org.locationtech.geomesa.utils.geotools.Conversions._
 import org.locationtech.geomesa.filter._
+import org.locationtech.geomesa.utils.geotools.Conversions._
 import org.locationtech.geomesa.utils.geotools.{DFI, DFR, FR, SimpleFeatureTypes}
 import org.locationtech.geomesa.utils.text.WKTUtils
 import org.opengis.feature.simple.{SimpleFeature, SimpleFeatureType}
-import org.opengis.filter.identity.FeatureId
+import org.opengis.filter._
 import org.opengis.filter.spatial._
 import org.opengis.filter.temporal._
-import org.opengis.filter._
-import org.orbisgis.geoserver.h2gis.datastore.H2GISDataStoreFactory
 
-import scala.language._
-import scala.util.Random
 import scala.collection.JavaConversions._
 import scala.collection.mutable
+import scala.language._
 import scala.reflect.ClassTag
-
-
+import scala.util.Random
 
 class AttributeIndexingTest {
   implicit def sfToCreate(feature: SimpleFeature): CreateOrUpdate = CreateOrUpdate(Instant.now, feature)
@@ -173,9 +165,25 @@ class AttributeIndexingTest {
   val bad1 = ff.or(whereAB, whereCD)
   val nice1 = ff.and(where, abcd)
 
-  val nFeats = 1000000
+  val nFeats = 100000
   val feats = (0 until nFeats).map(buildFeature)
   val featsUpdate = (0 until nFeats).map(buildFeature)
+
+  // Geo - CQEngine mojo
+  val qo =  new QueryOptions
+  import com.googlecode.cqengine.persistence.support._
+  val obset = ObjectSet.fromCollection(feats)
+
+  val whereSimpleAttribute = new com.googlecode.cqengine.attribute.SimpleFeatureAttribute(classOf[Geometry], "Where")
+
+  val bboxGeom = WKTUtils.read("POLYGON((0 0, 0 90, 180 90, 180 0, 0 0))")
+
+  val geoIndex = new GeoIndex(whereSimpleAttribute)
+  geoIndex.addAll(obset, qo)
+
+  val intersectsQuery = new com.googlecode.cqengine.query.geo.Intersects(whereSimpleAttribute, bboxGeom)
+
+  val results = geoIndex.retrieve(intersectsQuery, qo)
 
   val sfv = new SimplifyingFilterVisitor
 
@@ -455,10 +463,8 @@ class CQEngineTest(sft: SimpleFeatureType) {
       case c if classOf[java.lang.Integer].isAssignableFrom(c) => new SimpleFeatureIntegerAttribute(name)
     }
   }
-  
+
 }
-import scala.reflect._
-import scala.reflect.runtime.universe._
 
 
 // Todo optimize by using field number rather than name.
