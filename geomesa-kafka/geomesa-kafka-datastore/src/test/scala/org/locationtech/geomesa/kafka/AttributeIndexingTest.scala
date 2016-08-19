@@ -8,42 +8,38 @@
 
 package org.locationtech.geomesa.kafka
 
+import java.util.UUID
+
 import com.google.common.base.Ticker
-import com.googlecode.cqengine.attribute.{SimpleAttribute, Attribute}
+import com.googlecode.cqengine.attribute.{Attribute, SimpleAttribute}
+import com.googlecode.cqengine.index.geo.GeoIndex
 import com.googlecode.cqengine.index.hash.HashIndex
 import com.googlecode.cqengine.index.navigable.NavigableIndex
 import com.googlecode.cqengine.query.option.QueryOptions
-import com.googlecode.cqengine.resultset.ResultSet
-import com.googlecode.cqengine.{IndexedCollection, ConcurrentIndexedCollection}
 import com.googlecode.cqengine.query.{Query, QueryFactory}
-import com.vividsolutions.jts.geom.Point
-import org.geotools.data.simple.SimpleFeatureStore
+import com.googlecode.cqengine.{ConcurrentIndexedCollection, IndexedCollection}
+import com.vividsolutions.jts.geom.{Geometry, Point}
 import org.geotools.data.DataStoreFinder
-import org.geotools.data.{DataStoreFactorySpi, DataStoreFinder, FeatureStore}
-import org.geotools.factory.CommonFactoryFinder
+import org.geotools.data.simple.SimpleFeatureStore
 import org.geotools.feature.DefaultFeatureCollection
 import org.geotools.feature.simple.SimpleFeatureBuilder
 import org.geotools.filter.text.ecql.ECQL
 import org.geotools.filter.visitor.SimplifyingFilterVisitor
-import org.geotools.jdbc.JDBCDataStoreFactory
 import org.joda.time.{DateTime, DateTimeZone, Instant}
-import org.locationtech.geomesa.utils.geotools.Conversions._
 import org.locationtech.geomesa.filter._
-import org.locationtech.geomesa.utils.geotools.{FR, DFR, DFI, SimpleFeatureTypes}
+import org.locationtech.geomesa.utils.geotools.Conversions._
+import org.locationtech.geomesa.utils.geotools.{DFI, DFR, FR, SimpleFeatureTypes}
 import org.locationtech.geomesa.utils.text.WKTUtils
-import org.opengis.feature.simple.{SimpleFeatureType, SimpleFeature}
-import org.opengis.filter.identity.FeatureId
+import org.opengis.feature.simple.{SimpleFeature, SimpleFeatureType}
+import org.opengis.filter._
 import org.opengis.filter.spatial._
 import org.opengis.filter.temporal._
-import org.opengis.filter._
-import org.orbisgis.geoserver.h2gis.datastore.H2GISDataStoreFactory
 
-import scala.language._
-import scala.util.Random
 import scala.collection.JavaConversions._
 import scala.collection.mutable
-
-
+import scala.language._
+import scala.reflect.ClassTag
+import scala.util.Random
 
 class AttributeIndexingTest {
   implicit def sfToCreate(feature: SimpleFeature): CreateOrUpdate = CreateOrUpdate(Instant.now, feature)
@@ -171,9 +167,25 @@ class AttributeIndexingTest {
   val bad1 = ff.or(whereAB, whereCD)
   val nice1 = ff.and(where, abcd)
 
-  val nFeats = 1000000
+  val nFeats = 100000
   val feats = (0 until nFeats).map(buildFeature)
   val featsUpdate = (0 until nFeats).map(buildFeature)
+
+  // Geo - CQEngine mojo
+  val qo =  new QueryOptions
+  import com.googlecode.cqengine.persistence.support._
+  val obset = ObjectSet.fromCollection(feats)
+
+  val whereSimpleAttribute = new com.googlecode.cqengine.attribute.SimpleFeatureAttribute(classOf[Geometry], "Where")
+
+  val bboxGeom = WKTUtils.read("POLYGON((0 0, 0 90, 180 90, 180 0, 0 0))")
+
+  val geoIndex = new GeoIndex(whereSimpleAttribute)
+  geoIndex.addAll(obset, qo)
+
+  val intersectsQuery = new com.googlecode.cqengine.query.geo.Intersects(whereSimpleAttribute, bboxGeom)
+
+  val results = geoIndex.retrieve(intersectsQuery, qo)
 
   val sfv = new SimplifyingFilterVisitor
 
@@ -432,6 +444,56 @@ class CQEngineTest(sft: SimpleFeatureType) {
   def getFeatures(query: Query[SimpleFeature]): FR = {
     new DFR(sft, new DFI(cqcache.retrieve(query).iterator))
   }
+
+  sft.getAttributeDescriptors.find(_.equals("Who"))
+
+  val cqattrs = sft.getAttributeDescriptors.map { ad =>
+      val binding: Class[_] = ad.getType.getBinding
+    bindingToSimpleFeatureAttribute(binding, ad.getLocalName)
+  }
+  
+  def bindingToSimpleFeatureAttribute[A](binding: Class[_], name: String) = {
+    binding  match {
+      case c if classOf[java.lang.String].isAssignableFrom(c) => new SimpleFeatureAttribute[String](name)
+      case c if classOf[java.lang.Integer].isAssignableFrom(c) => new SimpleFeatureAttribute[Integer](name)
+      case c if classOf[java.lang.Long].isAssignableFrom(c) => new SimpleFeatureAttribute[java.lang.Long](name)
+      case c if classOf[java.lang.Float].isAssignableFrom(c) => new SimpleFeatureAttribute[java.lang.Float](name)
+      case c if classOf[java.lang.Double].isAssignableFrom(c) => new SimpleFeatureAttribute[java.lang.Double](name)
+      case c if classOf[java.lang.Boolean].isAssignableFrom(c) => new SimpleFeatureAttribute[java.lang.Boolean](name)
+      case c if classOf[java.util.Date].isAssignableFrom(c) => new SimpleFeatureAttribute[java.util.Date](name)
+      case c if classOf[UUID].isAssignableFrom(c) => new SimpleFeatureAttribute[UUID](name)
+      case c if classOf[Geometry].isAssignableFrom(c) => new SimpleFeatureAttribute[Geometry](name)
+    }
+  }
+
+  def bindingDispatches(binding: Class[_], name: String) = {
+    binding match {
+      case c if classOf[java.lang.String].isAssignableFrom(c) => new SimpleFeatureStringAttribute(name)
+      case c if classOf[java.lang.Integer].isAssignableFrom(c) => new SimpleFeatureIntegerAttribute(name)
+    }
+  }
+
+}
+
+
+// Todo optimize by using field number rather than name.
+class SimpleFeatureAttribute[A](name: String)(implicit ct: ClassTag[A]) extends
+  SimpleAttribute[SimpleFeature, A](classOf[SimpleFeature], ct.runtimeClass.asInstanceOf[Class[A]], name) {
+  override def getValue(feature: SimpleFeature, queryOptions: QueryOptions): A = {
+    feature.getAttribute(name).asInstanceOf[A]
+  }
+}
+
+class SimpleFeatureIntegerAttribute(name: String) extends
+  SimpleAttribute[SimpleFeature, Integer](classOf[SimpleFeature], classOf[Integer], name) {
+  override def getValue(feature: SimpleFeature, queryOptions: QueryOptions): Integer =
+    feature.getAttribute(name).asInstanceOf[Integer]
+}
+
+class SimpleFeatureStringAttribute(name: String) extends
+  SimpleAttribute[SimpleFeature, String](classOf[SimpleFeature], classOf[String], name) {
+  override def getValue(feature: SimpleFeature, queryOptions: QueryOptions): String =
+    feature.getAttribute(name).asInstanceOf[String]
 }
 
 
