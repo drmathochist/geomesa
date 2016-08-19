@@ -49,20 +49,33 @@ class LiveFeatureCacheCQEngine(val sft: SimpleFeatureType)
     val queryId = QueryFactory.equal(ID, sf.getID)
     val res = cqcache.retrieve(queryId)
     if (res.size > 0) {
-      for (holder <- res.iterator) {
-        cqcache.remove(holder)
+      for (sf <- res.iterator) {
+        cqcache.remove(sf)
       }
     }
     cqcache.add(sf)
   }
 
   override def getFeatureById(id: String): FeatureHolder = ???
-  /*{
+  /*
     val queryId = QueryFactory.equal(ID, id)
     val res = cqcache.retrieve(queryId)
+    res.iterator().headOption
+    if (res.size > 0) {
+      res.iterator.toList.headOption
+    }
+  }
+  {
+    val queryId = QueryFactory.equal(ID, id)
+    val res = cqcache.retrieve(queryId)
+
   }*/
 
-  override def removeFeature(toDelete: Delete): Unit = ???
+  override def removeFeature(toDelete: Delete): Unit = {
+    val queryId = QueryFactory.equal(ID, toDelete.id)
+    val res = cqcache.retrieve(queryId)
+    for (sf <- res.iterator) cqcache.remove(sf)
+  }
 
   override def clear(): Unit = ???
 

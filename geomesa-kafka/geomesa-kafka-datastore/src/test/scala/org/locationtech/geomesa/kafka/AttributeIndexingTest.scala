@@ -330,6 +330,7 @@ class AttributeIndexingTest {
     val ID = cq.ID
     val WHO_ATTR = cq.attrs.lookup[String]("Who")
     val WHAT_ATTR = cq.attrs.lookup[Integer]("What")
+    val WHERE_ATTR = cq.attrs.lookup[Geometry]("Where")
 
     val ab = CQF.or(CQF.equal(WHO_ATTR, "Addams"), CQF.equal(WHO_ATTR, "Bierce"))
     val cd = CQF.or(CQF.equal(WHO_ATTR, "Clemens"), CQF.equal(WHO_ATTR, "Damon"))
@@ -341,7 +342,6 @@ class AttributeIndexingTest {
       CQF.equal[SimpleFeature, Integer](WHAT_ATTR, 4))
     val ab_w14 = CQF.and(ab, w14)
 
-    val filters = Seq(ab, cd, w14, ab_w14)
 
     // Geo - CQEngine mojo
     val qo = new QueryOptions
@@ -350,16 +350,16 @@ class AttributeIndexingTest {
 
     val obset = ObjectSet.fromCollection(feats)
 
-    val whereSimpleAttribute = new com.googlecode.cqengine.attribute.SimpleFeatureAttribute(classOf[Geometry], "Where")
-
     val bboxGeom = WKTUtils.read("POLYGON((0 0, 0 90, 180 90, 180 0, 0 0))")
 
-    val geoIndex = new GeoIndex(whereSimpleAttribute)
+    val geoIndex = new GeoIndex(WHERE_ATTR)
     geoIndex.addAll(obset, qo)
 
-    val intersectsQuery = new com.googlecode.cqengine.query.geo.Intersects(whereSimpleAttribute, bboxGeom)
+    val intersectsQuery = new com.googlecode.cqengine.query.geo.Intersects(WHERE_ATTR, bboxGeom)
 
     val results = geoIndex.retrieve(intersectsQuery, qo)
+
+    val queries = Seq(ab, cd, w14, ab_w14, intersectsQuery)
   }
 
   def benchmarkCQ() = {
@@ -369,14 +369,14 @@ class AttributeIndexingTest {
     println(s"cq populate: ${feats.size} in $cq_pop ms (${feats.size.toDouble / cq_pop}/ms)")
     //println(s"cache size: ${cqholder.cqcache.size}")
 
-    runQueries[Query[SimpleFeature]](11, q => cq.getReaderForQuery(q).getIterator.size, CQData.filters)
+    runQueries[Query[SimpleFeature]](11, q => cq.getReaderForQuery(q).getIterator.size, CQData.queries)
 
     val cq_repop = timeUnit({
       for (sf <- featsUpdate) cq.createOrUpdateFeature(sf)
     })
     println(s"cq repopulate = ${featsUpdate.size} in $cq_repop ms (${featsUpdate.size.toDouble / cq_repop}/ms)")
 
-    runQueries[Query[SimpleFeature]](11, q => cq.getReaderForQuery(q).getIterator.size, CQData.filters)
+    runQueries[Query[SimpleFeature]](11, q => cq.getReaderForQuery(q).getIterator.size, CQData.queries)
   }
 }
 
