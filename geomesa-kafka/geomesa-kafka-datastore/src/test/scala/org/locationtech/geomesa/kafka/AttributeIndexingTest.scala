@@ -8,10 +8,11 @@
 
 package org.locationtech.geomesa.kafka
 
+import java.io.Serializable
 import java.util.UUID
 
 import com.google.common.base.Ticker
-import com.googlecode.cqengine.attribute.{Attribute, SimpleAttribute}
+import com.googlecode.cqengine.attribute.{Attribute, SimpleAttribute, SimpleFeatureAttribute}
 import com.googlecode.cqengine.index.geo.GeoIndex
 import com.googlecode.cqengine.index.hash.HashIndex
 import com.googlecode.cqengine.index.navigable.NavigableIndex
@@ -424,10 +425,61 @@ class CQEngineTest(sft: SimpleFeatureType) {
 
   val filters = Seq(ab, cd, w14, ab_w14)
 
+  val bboxGeom = WKTUtils.read("POLYGON((0 0, 0 90, 180 90, 180 0, 0 0))")
+  val intersectsQuery = new com.googlecode.cqengine.query.geo.Intersects(whereSimpleAttribute, bboxGeom)
+
+  val bboxAB = and(ab, intersectsQuery)
+
+  val whereSimpleAttribute = new com.googlecode.cqengine.attribute.SimpleFeatureAttribute(classOf[Geometry], "Where")
+  val whoAttribute = new com.googlecode.cqengine.attribute.SimpleFeatureAttribute(classOf[String], "Who")
+  val whatAttribute = new com.googlecode.cqengine.attribute.SimpleFeatureAttribute(classOf[Integer], "What")
+
+  val sfas: Seq[Attribute[_, _]] = Seq(whoAttribute, whatAttribute, whereSimpleAttribute)
+
+  val lookup: Map[String, Attribute[SimpleFeature, _]] = Map("Where" -> whereSimpleAttribute,
+                   "Who" -> whoAttribute,
+                   "What" -> whatAttribute)
+
+  // NB: This is really, really bad;)
+  def lookupWithType[T](attributeName: String): Attribute[SimpleFeature, T] = {
+    lookup(attributeName).asInstanceOf[Attribute[SimpleFeature, T]]
+  }
+
+  case class SFTToCQ(sft: SimpleFeatureType) {
+    val attributes = sft.getAttributeDescriptors
+
+    val lookupMap: Map[String, Attribute[SimpleFeature, _]] = attributes.map { attr =>
+      val name = attr.getLocalName
+      name -> buildSimpleFeatureAttribute(attr.getType.getBinding, name)
+    }.toMap
+
+    def lookupWithType[T](attributeName: String): Attribute[SimpleFeature, T] = {
+      lookupMap(attributeName).asInstanceOf[Attribute[SimpleFeature, T]]
+    }
+
+    def buildSimpleFeatureAttribute[A](binding: Class[_], name: String): Attribute[SimpleFeature, _] = {
+      binding match {
+        case c if classOf[java.lang.String].isAssignableFrom(c) => new SimpleFeatureAttribute[String](name)
+        case c if classOf[java.lang.Integer].isAssignableFrom(c) => new SimpleFeatureAttribute[Integer](name)
+        case c if classOf[java.lang.Long].isAssignableFrom(c) => new SimpleFeatureAttribute[java.lang.Long](name)
+        case c if classOf[java.lang.Float].isAssignableFrom(c) => new SimpleFeatureAttribute[java.lang.Float](name)
+        case c if classOf[java.lang.Double].isAssignableFrom(c) => new SimpleFeatureAttribute[java.lang.Double](name)
+        case c if classOf[java.lang.Boolean].isAssignableFrom(c) => new SimpleFeatureAttribute[java.lang.Boolean](name)
+        case c if classOf[java.util.Date].isAssignableFrom(c) => new SimpleFeatureAttribute[java.util.Date](name)
+        case c if classOf[UUID].isAssignableFrom(c) => new SimpleFeatureAttribute[UUID](name)
+        case c if classOf[Geometry].isAssignableFrom(c) => new SimpleFeatureAttribute[Geometry](name)
+      }
+    }
+  }
+
+
+
   val cqcache: IndexedCollection[SimpleFeature] = new ConcurrentIndexedCollection[SimpleFeature]()
+
   cqcache.addIndex(HashIndex.onAttribute(ID))
   cqcache.addIndex(HashIndex.onAttribute(WHO_ATTR))
   cqcache.addIndex(NavigableIndex.onAttribute(WHAT_ATTR))
+  cqcache.addIndex(GeoIndex.onAttribute(whereSimpleAttribute))
 
   def createOrUpdateFeature(fNew: CreateOrUpdate) = {
     val sf = fNew.feature
