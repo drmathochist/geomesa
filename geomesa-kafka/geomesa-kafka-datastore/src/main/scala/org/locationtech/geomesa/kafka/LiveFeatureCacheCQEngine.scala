@@ -20,6 +20,7 @@ import com.vividsolutions.jts.geom.Geometry
 import org.locationtech.geomesa.utils.geotools._
 import org.opengis.feature.simple.{SimpleFeature, SimpleFeatureType}
 import org.opengis.filter.Filter
+import org.locationtech.geomesa.utils.geotools.Conversions._
 
 import scala.collection.JavaConversions._
 import scala.reflect.ClassTag
@@ -42,7 +43,7 @@ class LiveFeatureCacheCQEngine(val sft: SimpleFeatureType)
   cqcache.addIndex(GeoIndex.onAttribute(whereSimpleAttribute))
   */
 
-  override def cleanUp(): Unit = ???
+  override def cleanUp(): Unit = {}
 
   override def createOrUpdateFeature(update: CreateOrUpdate): Unit = {
     val sf = update.feature
@@ -56,20 +57,17 @@ class LiveFeatureCacheCQEngine(val sft: SimpleFeatureType)
     cqcache.add(sf)
   }
 
-  override def getFeatureById(id: String): FeatureHolder = ???
-  /*
+  override def getFeatureById(id: String): FeatureHolder = {
     val queryId = QueryFactory.equal(ID, id)
     val res = cqcache.retrieve(queryId)
-    res.iterator().headOption
-    if (res.size > 0) {
-      res.iterator.toList.headOption
+    res.toList.headOption match {
+      case Some(sf) => {
+        val env = sf.geometry.getEnvelopeInternal
+        FeatureHolder(sf, env)
+      }
+      case None => null
     }
   }
-  {
-    val queryId = QueryFactory.equal(ID, id)
-    val res = cqcache.retrieve(queryId)
-
-  }*/
 
   override def removeFeature(toDelete: Delete): Unit = {
     val queryId = QueryFactory.equal(ID, toDelete.id)
@@ -77,9 +75,9 @@ class LiveFeatureCacheCQEngine(val sft: SimpleFeatureType)
     for (sf <- res.iterator) cqcache.remove(sf)
   }
 
-  override def clear(): Unit = ???
+  override def clear(): Unit = cqcache.clear
 
-  override def size(): Int = ???
+  override def size(): Int = cqcache.size
 
   override def size(filter: Filter): Int = ???
 

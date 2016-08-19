@@ -38,22 +38,17 @@ class LiveFeatureCacheCQEngineTest extends Specification with Mockito with Simpl
     }
 
     "handle two CreateOrUpdate messages" >> {
-      val lfc = new LiveFeatureCacheGuava(sft, None)
+      val lfc = new LiveFeatureCacheCQEngine(sft)
 
       lfc.createOrUpdateFeature(CreateOrUpdate(new Instant(1000), track0v0))
       lfc.createOrUpdateFeature(CreateOrUpdate(new Instant(2000), track1v0))
 
       lfc.size() mustEqual 2
       lfc.getFeatureById("track1") must equalFeatureHolder(track1v0)
-
-      lfc.features must haveSize(2)
-      lfc.features.get("track1") must beSome(featureHolder(track1v0))
-
-      lfc.spatialIndex.query(wholeWorld).toList.asJava must containTheSameFeatureHoldersAs(track0v0, track1v0)
     }
 
     "use the most recent version of a feature" >> {
-      val lfc = new LiveFeatureCacheGuava(sft, None)
+      val lfc = new LiveFeatureCacheCQEngine(sft)
 
       lfc.createOrUpdateFeature(CreateOrUpdate(new Instant(1000), track0v0))
       lfc.createOrUpdateFeature(CreateOrUpdate(new Instant(2000), track1v0))
@@ -61,15 +56,10 @@ class LiveFeatureCacheCQEngineTest extends Specification with Mockito with Simpl
 
       lfc.size() mustEqual 2
       lfc.getFeatureById("track0") must equalFeatureHolder(track0v1)
-
-      lfc.features must haveSize(2)
-      lfc.features.get("track0") must beSome(featureHolder(track0v1))
-
-      lfc.spatialIndex.query(wholeWorld).toList.asJava must containTheSameFeatureHoldersAs(track0v1, track1v0)
     }
 
     "handle a Delete message" >> {
-      val lfc = new LiveFeatureCacheGuava(sft, None)
+      val lfc = new LiveFeatureCacheCQEngine(sft)
 
       lfc.createOrUpdateFeature(CreateOrUpdate(new Instant(1000), track0v0))
       lfc.createOrUpdateFeature(CreateOrUpdate(new Instant(2000), track1v0))
@@ -78,15 +68,10 @@ class LiveFeatureCacheCQEngineTest extends Specification with Mockito with Simpl
 
       lfc.size() mustEqual 1
       lfc.getFeatureById("track0") must beNull
-
-      lfc.features must haveSize(1)
-      lfc.features.get("track0") must beNone
-
-      lfc.spatialIndex.query(wholeWorld).toList.asJava must containTheSameFeatureHoldersAs(track1v0)
     }
 
     "handle a Clear message" >> {
-      val lfc = new LiveFeatureCacheGuava(sft, None)
+      val lfc = new LiveFeatureCacheCQEngine(sft)
 
       lfc.createOrUpdateFeature(CreateOrUpdate(new Instant(1000), track0v0))
       lfc.createOrUpdateFeature(CreateOrUpdate(new Instant(2000), track1v0))
@@ -99,12 +84,10 @@ class LiveFeatureCacheCQEngineTest extends Specification with Mockito with Simpl
       lfc.clear()
 
       lfc.size() mustEqual 0
-
-      lfc.features must haveSize(0)
-      lfc.spatialIndex.query(wholeWorld) must beEmpty
     }
   }
 
+  /*
   "LiveFeatureCache with expiry" should {
 
     "handle a CreateOrUpdate message" >> {
@@ -144,12 +127,14 @@ class LiveFeatureCacheCQEngineTest extends Specification with Mockito with Simpl
       lfc.spatialIndex.query(wholeWorld) must beEmpty
     }
   }
+  */
 }
 
-class MockTicker extends Ticker {
+/*class MockTicker extends Ticker {
 
   var tic: Long = 0L
 
   def read(): Long = tic
 }
+*/
 

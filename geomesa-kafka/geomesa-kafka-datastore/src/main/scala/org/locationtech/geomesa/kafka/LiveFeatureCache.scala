@@ -127,7 +127,7 @@ class LiveFeatureCacheH2(sft: SimpleFeatureType) extends LiveFeatureCache {
   })
   */
 
-  override def cleanUp(): Unit = ds.dispose()
+  override def cleanUp(): Unit = { /* vacuum? */ }
 
   override def createOrUpdateFeature(update: CreateOrUpdate): Unit = {
     val sf = update.feature
