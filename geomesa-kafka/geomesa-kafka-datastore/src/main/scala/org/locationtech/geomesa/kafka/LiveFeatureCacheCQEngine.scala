@@ -32,7 +32,7 @@ class LiveFeatureCacheCQEngine(val sft: SimpleFeatureType)
       sf.getID
     }
   }
-  val attrs = new SFTAttributes(sft)
+  val attrs = SFTAttributes(sft)
 
   val cqcache: IndexedCollection[SimpleFeature] = new ConcurrentIndexedCollection[SimpleFeature]()
   cqcache.addIndex(HashIndex.onAttribute(ID))
