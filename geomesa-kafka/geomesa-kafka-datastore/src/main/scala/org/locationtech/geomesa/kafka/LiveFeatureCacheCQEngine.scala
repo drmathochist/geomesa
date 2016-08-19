@@ -83,7 +83,7 @@ class LiveFeatureCacheCQEngine(sft: SimpleFeatureType,
     for (sf <- res.iterator) cqcache.remove(sf)
   }
 
-  override def clear(): Unit = cqcache.clear
+  override def clear(): Unit = cqcache.clear()
 
   override def size(): Int = cqcache.size
 
