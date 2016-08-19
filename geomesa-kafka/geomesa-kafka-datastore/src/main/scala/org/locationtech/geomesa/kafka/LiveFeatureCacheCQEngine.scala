@@ -25,8 +25,13 @@ import org.locationtech.geomesa.utils.geotools.Conversions._
 import scala.collection.JavaConversions._
 import scala.reflect.ClassTag
 
-class LiveFeatureCacheCQEngine(val sft: SimpleFeatureType)
+class LiveFeatureCacheCQEngine(sft: SimpleFeatureType,
+                               expirationPeriod: Option[Long])
   extends LiveFeatureCache with LazyLogging {
+
+  def this(sft: SimpleFeatureType) = {
+    this(sft, null)
+  }
 
   val ID: Attribute[SimpleFeature, String] = new SimpleAttribute[SimpleFeature, String]("ID") {
     override def getValue(sf: SimpleFeature, queryOptions: QueryOptions): String = {
@@ -37,11 +42,14 @@ class LiveFeatureCacheCQEngine(val sft: SimpleFeatureType)
 
   val cqcache: IndexedCollection[SimpleFeature] = new ConcurrentIndexedCollection[SimpleFeature]()
   cqcache.addIndex(HashIndex.onAttribute(ID))
+
   /*
   cqcache.addIndex(HashIndex.onAttribute(WHO_ATTR))
   cqcache.addIndex(NavigableIndex.onAttribute(WHAT_ATTR))
   cqcache.addIndex(GeoIndex.onAttribute(whereSimpleAttribute))
   */
+
+
 
   override def cleanUp(): Unit = {}
 

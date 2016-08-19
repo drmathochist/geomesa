@@ -87,14 +87,14 @@ class LiveFeatureCacheCQEngineTest extends Specification with Mockito with Simpl
     }
   }
 
-  /*
+
   "LiveFeatureCache with expiry" should {
 
     "handle a CreateOrUpdate message" >> {
       implicit val ticker = new MockTicker
       ticker.tic = 1000000L // ns
 
-      val lfc = new LiveFeatureCacheGuava(sft, Some(5L)) // ms
+      val lfc = new LiveFeatureCacheCQEngine(sft, Some(5L)) // ms
       lfc.createOrUpdateFeature(CreateOrUpdate(new Instant(1000), track0v0))
 
       ticker.tic = 2000000L // ns
@@ -102,17 +102,15 @@ class LiveFeatureCacheCQEngineTest extends Specification with Mockito with Simpl
       lfc.size() mustEqual 1
       lfc.getFeatureById("track0") must equalFeatureHolder(track0v0)
 
-      lfc.features must haveSize(1)
-      lfc.features.get("track0") must beSome(featureHolder(track0v0))
-
-      lfc.spatialIndex.query(wholeWorld).toList.asJava must containTheSameFeatureHoldersAs(track0v0)
     }
 
     "expire message correctly" >> {
+      pending("expiration not implemented yet")
+
       implicit val ticker = new MockTicker
       ticker.tic = 1000000L // ns
 
-      val lfc = new LiveFeatureCacheGuava(sft, Some(5L)) // ms
+      val lfc = new LiveFeatureCacheCQEngine(sft, Some(5L)) // ms
       lfc.createOrUpdateFeature(CreateOrUpdate(new Instant(1000), track0v0))
 
       ticker.tic = 7000000L
@@ -121,13 +119,8 @@ class LiveFeatureCacheCQEngineTest extends Specification with Mockito with Simpl
       lfc.size() mustEqual 0
       lfc.getFeatureById("track0") must beNull
 
-      lfc.features must haveSize(0)
-      lfc.features.get("track0") must beNone
-
-      lfc.spatialIndex.query(wholeWorld) must beEmpty
     }
   }
-  */
 }
 
 /*class MockTicker extends Ticker {
