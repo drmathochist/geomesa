@@ -415,10 +415,19 @@ class CQEngineTest(sft: SimpleFeatureType) {
 
   val filters = Seq(ab, cd)
 
+  val bboxGeom = WKTUtils.read("POLYGON((0 0, 0 90, 180 90, 180 0, 0 0))")
+  val intersectsQuery = new com.googlecode.cqengine.query.geo.Intersects(whereSimpleAttribute, bboxGeom)
+
+  val bboxAB = and(ab, intersectsQuery)
+
+  val whereSimpleAttribute = new com.googlecode.cqengine.attribute.SimpleFeatureAttribute(classOf[Geometry], "Where")
+
   val cqcache: IndexedCollection[SimpleFeature] = new ConcurrentIndexedCollection[SimpleFeature]()
+
   cqcache.addIndex(HashIndex.onAttribute(ID))
   cqcache.addIndex(HashIndex.onAttribute(WHO_ATTR))
   cqcache.addIndex(NavigableIndex.onAttribute(WHAT_ATTR))
+  cqcache.addIndex(GeoIndex.onAttribute(whereSimpleAttribute))
 
   def createOrUpdateFeature(fNew: CreateOrUpdate) = {
     val sf = fNew.feature
