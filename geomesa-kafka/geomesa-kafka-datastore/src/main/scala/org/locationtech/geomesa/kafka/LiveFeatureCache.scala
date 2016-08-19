@@ -1,3 +1,11 @@
+/***********************************************************************
+  * Copyright (c) 2013-2016 Commonwealth Computer Research, Inc.
+  * All rights reserved. This program and the accompanying materials
+  * are made available under the terms of the Apache License, Version 2.0
+  * which accompanies this distribution and is available at
+  * http://www.opensource.org/licenses/apache2.0.php.
+  *************************************************************************/
+
 package org.locationtech.geomesa.kafka
 
 import java.util.concurrent.TimeUnit
@@ -5,6 +13,10 @@ import java.util.concurrent.TimeUnit
 import com.google.common.base.Ticker
 import com.google.common.cache._
 import com.typesafe.scalalogging.LazyLogging
+import org.geotools.data.DataStoreFinder
+import org.geotools.data.simple.SimpleFeatureStore
+import org.geotools.factory.CommonFactoryFinder
+import org.geotools.feature.DefaultFeatureCollection
 import org.locationtech.geomesa.utils.geotools.FR
 import org.locationtech.geomesa.utils.index.{BucketIndex, SpatialIndex}
 import org.opengis.feature.simple.{SimpleFeatureType, SimpleFeature}
@@ -13,10 +25,8 @@ import org.locationtech.geomesa.utils.geotools.Conversions._
 
 import scala.collection.mutable
 import scala.collection.JavaConverters._
+import scala.collection.JavaConversions._
 
-/**
-  * Created by mzimmerman on 8/17/16.
-  */
 trait LiveFeatureCache {
   def cleanUp(): Unit
 
@@ -98,11 +108,40 @@ class LiveFeatureCacheGuava(override val sft: SimpleFeatureType,
   private def newSpatialIndex() = new BucketIndex[SimpleFeature]
 }
 
-class LiveFeatureCacheCQEngine(val sft: SimpleFeatureType)
-  extends LiveFeatureCache with LazyLogging {
-  override def cleanUp(): Unit = ???
+/**
+  * EXPERIMENTAL!
+  */
+class LiveFeatureCacheH2(sft: SimpleFeatureType) extends LiveFeatureCache {
+  val ff = CommonFactoryFinder.getFilterFactory2
+  val params = Map("dbtype" -> "h2gis", "database" -> "mem:db1")
+  val ds = DataStoreFinder.getDataStore(params)
+  ds.createSchema(sft)
+  val fs = ds.getFeatureSource(sft.getTypeName).asInstanceOf[SimpleFeatureStore]
+  val attrNames = sft.getAttributeDescriptors.map(_.getLocalName).toArray
 
-  override def createOrUpdateFeature(update: CreateOrUpdate): Unit = ???
+  /*
+  val h2_pop = timeUnit({
+    val fc = new DefaultFeatureCollection(sft.getTypeName, sft)
+    fc.addAll(feats)
+    fs.addFeatures(fc)
+  })
+  */
+
+  override def cleanUp(): Unit = ds.dispose()
+
+  override def createOrUpdateFeature(update: CreateOrUpdate): Unit = {
+    val sf = update.feature
+    val filter = ff.id(sf.getIdentifier)
+    if (fs.getFeatures(filter).size > 0) {
+      val attrValues = attrNames.toList.map(sf.getAttribute(_)).toArray
+      fs.modifyFeatures(attrNames, attrValues, filter)
+    }
+    else {
+      val fc = new DefaultFeatureCollection(sft.getTypeName, sft)
+      fc.add(sf)
+      fs.addFeatures(fc)
+    }
+  }
 
   override def getFeatureById(id: String): FeatureHolder = ???
 
@@ -115,4 +154,6 @@ class LiveFeatureCacheCQEngine(val sft: SimpleFeatureType)
   override def size(filter: Filter): Int = ???
 
   override def getReaderForFilter(filter: Filter): FR = ???
+
+  def getFeatures(filter: Filter) = fs.getFeatures(filter)
 }

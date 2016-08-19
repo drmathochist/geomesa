@@ -8,28 +8,20 @@
 
 package org.locationtech.geomesa.kafka
 
-import java.io.Serializable
-import java.util.UUID
-
 import com.google.common.base.Ticker
-import com.googlecode.cqengine.attribute.{Attribute, SimpleAttribute, SimpleFeatureAttribute}
 import com.googlecode.cqengine.index.geo.GeoIndex
-import com.googlecode.cqengine.index.hash.HashIndex
-import com.googlecode.cqengine.index.navigable.NavigableIndex
 import com.googlecode.cqengine.query.option.QueryOptions
-import com.googlecode.cqengine.query.{Query, QueryFactory}
-import com.googlecode.cqengine.{ConcurrentIndexedCollection, IndexedCollection}
+import com.googlecode.cqengine.query.Query
+import com.googlecode.cqengine.query.{QueryFactory=>CQF}
 import com.vividsolutions.jts.geom.{Geometry, Point}
-import org.geotools.data.DataStoreFinder
-import org.geotools.data.simple.SimpleFeatureStore
-import org.geotools.feature.DefaultFeatureCollection
+import org.geotools.factory.CommonFactoryFinder
 import org.geotools.feature.simple.SimpleFeatureBuilder
 import org.geotools.filter.text.ecql.ECQL
 import org.geotools.filter.visitor.SimplifyingFilterVisitor
 import org.joda.time.{DateTime, DateTimeZone, Instant}
 import org.locationtech.geomesa.filter._
 import org.locationtech.geomesa.utils.geotools.Conversions._
-import org.locationtech.geomesa.utils.geotools.{DFI, DFR, FR, SimpleFeatureTypes}
+import org.locationtech.geomesa.utils.geotools.SimpleFeatureTypes
 import org.locationtech.geomesa.utils.text.WKTUtils
 import org.opengis.feature.simple.{SimpleFeature, SimpleFeatureType}
 import org.opengis.filter._
@@ -39,14 +31,13 @@ import org.opengis.filter.temporal._
 import scala.collection.JavaConversions._
 import scala.collection.mutable
 import scala.language._
-import scala.reflect.ClassTag
 import scala.util.Random
 
 class AttributeIndexingTest {
   implicit def sfToCreate(feature: SimpleFeature): CreateOrUpdate = CreateOrUpdate(Instant.now, feature)
 
   //
-  //  implicit val ff = CommonFactoryFinder.getFilterFactory2
+  implicit val ff = CommonFactoryFinder.getFilterFactory2
 
   val spec = "Who:String:index=full,What:Integer,When:Date,*Where:Point:srid=4326,Why:String"
   val MIN_DATE = new DateTime(2014, 1, 1, 0, 0, 0, DateTimeZone.forID("UTC"))
@@ -84,6 +75,46 @@ class AttributeIndexingTest {
     builder.buildFeature(i.toString)
   }
 
+  def mean(values: Seq[Long]): Double = {
+    values.sum.toDouble / values.length.toDouble
+  }
+
+  def sd(values: Seq[Long]): Double = {
+    val mn = mean(values)
+    math.sqrt(
+      values.map(x => math.pow(x.toDouble - mn, 2.0)).sum /
+        (values.length - 1).toDouble)
+  }
+
+  def fd(value: Double): String = {
+    "%.1f".format(value)
+  }
+
+  def runQueries[T](n: Int, genIter: T => Long, filters: Seq[T]) = {
+    println(Seq(
+      "c_max",
+      "c_min",
+      "t_max",
+      "t_mean",
+      "t_sd",
+      "t_min",
+      "filter"
+    ).mkString("\t"))
+    for (f <- filters) {
+      val timeRes = (1 to n).map(i => time(genIter(f)))
+      val counts = timeRes.map(_._1)
+      val times = timeRes.map(_._2)
+      println(Seq(
+        counts.max,
+        counts.min,
+        times.max,
+        fd(mean(times)),
+        fd(sd(times)),
+        times.min,
+        f.toString
+      ).mkString("\t"))
+    }
+  }
 
   def time[A](a: => A) = {
     val now = System.currentTimeMillis()
@@ -98,9 +129,6 @@ class AttributeIndexingTest {
     a
     System.currentTimeMillis() - now
   }
-
-  implicit val ticker = Ticker.systemTicker()
-  val lfc = new LiveFeatureCacheGuava(sft, None)
 
   val ab = ECQL.toFilter("Who IN('Addams', 'Bierce')")
   val cd = ECQL.toFilter("Who IN('Clemens', 'Damon')")
@@ -143,7 +171,6 @@ class AttributeIndexingTest {
   val geoJustCD = ff.and(justifiedCD, bbox2)
   val badOr = ff.or(geoJustAB, geoJustCD)
 
-
   //val filters = Seq(ab, cd, w14, where, justified, justifiedAB, justifiedCD, just, justBBOX, justBBOX2, bbox2)
   val ab_w14 = ff.and(ab, w14)
   val filters = Seq(ab, cd, w14, ab_w14)
@@ -172,26 +199,16 @@ class AttributeIndexingTest {
   val feats = (0 until nFeats).map(buildFeature)
   val featsUpdate = (0 until nFeats).map(buildFeature)
 
-  // Geo - CQEngine mojo
-  val qo =  new QueryOptions
-  import com.googlecode.cqengine.persistence.support._
-  val obset = ObjectSet.fromCollection(feats)
 
-  val whereSimpleAttribute = new com.googlecode.cqengine.attribute.SimpleFeatureAttribute(classOf[Geometry], "Where")
+  // load different LiveFeatureCache implementations
+  implicit val ticker = Ticker.systemTicker()
+  val lfc = new LiveFeatureCacheGuava(sft, None)
+  val h2  = new LiveFeatureCacheH2(sft)
+  val cq  = new LiveFeatureCacheCQEngine(sft)
 
-  val bboxGeom = WKTUtils.read("POLYGON((0 0, 0 90, 180 90, 180 0, 0 0))")
 
-  val geoIndex = new GeoIndex(whereSimpleAttribute)
-  geoIndex.addAll(obset, qo)
-
-  val intersectsQuery = new com.googlecode.cqengine.query.geo.Intersects(whereSimpleAttribute, bboxGeom)
-
-  val results = geoIndex.retrieve(intersectsQuery, qo)
 
   val sfv = new SimplifyingFilterVisitor
-
-  //time(lfc.getReaderForFilter(where.accept(sfv, null).asInstanceOf[Filter]).getIterator.size)
-
 
   def benchmark(f: Filter) {
     println("Running f")
@@ -269,64 +286,6 @@ class AttributeIndexingTest {
     printBooleanInternal(f)
   }
 
-  def mean(values: Seq[Long]): Double = {
-    values.sum.toDouble / values.length.toDouble
-  }
-
-  def sd(values: Seq[Long]): Double = {
-    val mn = mean(values)
-    math.sqrt(
-      values.map(x => math.pow(x.toDouble - mn, 2.0)).sum /
-        (values.length - 1).toDouble)
-  }
-
-  def fd(value: Double): String = {
-    "%.1f".format(value)
-  }
-
-  def runQueries[T](n: Int, genIter: T => Long, filters: Seq[T]) = {
-    println(Seq(
-      "c_max",
-      "c_min",
-      "t_max",
-      "t_mean",
-      "t_sd",
-      "t_min",
-      "filter"
-    ).mkString("\t"))
-    for (f <- filters) {
-      val timeRes = (1 to n).map(i => time(genIter(f)))
-      val counts = timeRes.map(_._1)
-      val times = timeRes.map(_._2)
-      println(Seq(
-        counts.max,
-        counts.min,
-        times.max,
-        fd(mean(times)),
-        fd(sd(times)),
-        times.min,
-        f.toString
-      ).mkString("\t"))
-    }
-  }
-
-  // approx. equivalent of LiveFeatureCache.createOrUpdateFeature()
-  // for a JDBCFeatureStore
-  val attrNames = sft.getAttributeDescriptors.map(_.getLocalName).toArray
-  def createOrUpdateFeature(fs: SimpleFeatureStore, o: CreateOrUpdate): Unit = {
-    val sf = o.feature
-    val filter = ff.id(sf.getIdentifier)
-    if (fs.getFeatures(filter).size > 0) {
-      val attrValues = attrNames.toList.map(sf.getAttribute(_)).toArray
-      fs.modifyFeatures(attrNames, attrValues, filter)
-    }
-    else {
-      val fc = new DefaultFeatureCollection(sft.getTypeName, sft)
-      fc.add(sf)
-      fs.addFeatures(fc)
-    }
-  }
-
   def countPopulate(count: Int, time: Long): String = {
     "%d in %d ms (%.1f /ms)".format(count, time, count.toDouble / time)
   }
@@ -348,206 +307,78 @@ class AttributeIndexingTest {
   }
 
   def benchmarkH2() = {
-    val params = Map("dbtype" -> "h2gis", "database" -> "mem:db1")
-    //val params = Map("dbtype" -> "h2gis", "database" -> "/run/shm/mdz/test1")
-    val ds = DataStoreFinder.getDataStore(params)
-    ds.createSchema(sft)
-    val fs = ds.getFeatureSource("test").asInstanceOf[SimpleFeatureStore]
-    val h2_pop = timeUnit({
-      val fc = new DefaultFeatureCollection(sft.getTypeName, sft)
-      fc.addAll(feats)
-      fs.addFeatures(fc)
+    val h2_pop = timeUnit(for (sf <- feats) {
+      h2.createOrUpdateFeature(sf)
     })
     println("h2 populate time (ms) = " + h2_pop)
 
     // run queries
-    runQueries[Filter](11, f => fs.getFeatures(f).features.size, filters)
+    runQueries[Filter](11, f => h2.getFeatures(f).features.size, filters)
 
     //update some of the features
     val h2_repop = timeUnit(for (sf <- featsUpdate) {
-      createOrUpdateFeature(fs, sf)
+      h2.createOrUpdateFeature(sf)
     })
     println("h2 repopulate time (ms) = " + h2_repop)
 
     // run queries again
-    runQueries[Filter](11, f => fs.getFeatures(f).features.size, filters)
-    ds.dispose()
+    runQueries[Filter](11, f => h2.getFeatures(f).features.size, filters)
+  }
+
+  object CQData {
+
+    val ID = cq.ID
+    val WHO_ATTR = cq.attrs.lookup[String]("Who")
+    val WHAT_ATTR = cq.attrs.lookup[Integer]("What")
+
+    val ab = CQF.or(CQF.equal(WHO_ATTR, "Addams"), CQF.equal(WHO_ATTR, "Bierce"))
+    val cd = CQF.or(CQF.equal(WHO_ATTR, "Clemens"), CQF.equal(WHO_ATTR, "Damon"))
+    //val ab_cd = and(ab, cd)
+    val w14 = CQF.or(
+      CQF.equal[SimpleFeature, Integer](WHAT_ATTR, 1),
+      CQF.equal[SimpleFeature, Integer](WHAT_ATTR, 2),
+      CQF.equal[SimpleFeature, Integer](WHAT_ATTR, 3),
+      CQF.equal[SimpleFeature, Integer](WHAT_ATTR, 4))
+    val ab_w14 = CQF.and(ab, w14)
+
+    val filters = Seq(ab, cd, w14, ab_w14)
+
+    // Geo - CQEngine mojo
+    val qo = new QueryOptions
+
+    import com.googlecode.cqengine.persistence.support._
+
+    val obset = ObjectSet.fromCollection(feats)
+
+    val whereSimpleAttribute = new com.googlecode.cqengine.attribute.SimpleFeatureAttribute(classOf[Geometry], "Where")
+
+    val bboxGeom = WKTUtils.read("POLYGON((0 0, 0 90, 180 90, 180 0, 0 0))")
+
+    val geoIndex = new GeoIndex(whereSimpleAttribute)
+    geoIndex.addAll(obset, qo)
+
+    val intersectsQuery = new com.googlecode.cqengine.query.geo.Intersects(whereSimpleAttribute, bboxGeom)
+
+    val results = geoIndex.retrieve(intersectsQuery, qo)
   }
 
   def benchmarkCQ() = {
-    val cqholder = new CQEngineTest(sft)
     val cq_pop = timeUnit({
-      for (sf <- feats) cqholder.createOrUpdateFeature(sf)
+      for (sf <- feats) cq.createOrUpdateFeature(sf)
     })
     println(s"cq populate: ${feats.size} in $cq_pop ms (${feats.size.toDouble / cq_pop}/ms)")
     //println(s"cache size: ${cqholder.cqcache.size}")
 
-    //runQueries[Query[SimpleFeature]](11, q => cqholder.getFeatures(q).getIterator.size, cqholder.filters)
+    runQueries[Query[SimpleFeature]](11, q => cq.getReaderForQuery(q).getIterator.size, CQData.filters)
 
     val cq_repop = timeUnit({
-      for (sf <- featsUpdate) cqholder.createOrUpdateFeature(sf)
+      for (sf <- featsUpdate) cq.createOrUpdateFeature(sf)
     })
     println(s"cq repopulate = ${featsUpdate.size} in $cq_repop ms (${featsUpdate.size.toDouble / cq_repop}/ms)")
 
-    runQueries[Query[SimpleFeature]](11, q => cqholder.getFeatures(q).getIterator.size, cqholder.filters)
+    runQueries[Query[SimpleFeature]](11, q => cq.getReaderForQuery(q).getIterator.size, CQData.filters)
   }
 }
-
-class CQEngineTest(sft: SimpleFeatureType) {
-  val ID: Attribute[SimpleFeature, String] = new SimpleAttribute[SimpleFeature, String]("Id") {
-    override def getValue(sf: SimpleFeature, queryOptions: QueryOptions): String = {
-      sf.getID
-    }
-  }
-
-  val WHO_ATTR: Attribute[SimpleFeature, String] = new SimpleAttribute[SimpleFeature, String]("Who") {
-    override def getValue(sf: SimpleFeature, queryOptions: QueryOptions): String = {
-      sf.getAttribute("Who").asInstanceOf[String]
-    }
-  }
-  val WHAT_ATTR: Attribute[SimpleFeature, Integer] = new SimpleAttribute[SimpleFeature, Integer]("What") {
-    override def getValue(sf: SimpleFeature, queryOptions: QueryOptions): Integer = {
-      sf.getAttribute("What").asInstanceOf[Integer]
-    }
-  }
-
-  import QueryFactory._
-
-  val ab = or(equal(WHO_ATTR, "Addams"), equal(WHO_ATTR, "Bierce"))
-  val cd = or(equal(WHO_ATTR, "Clemens"), equal(WHO_ATTR, "Damon"))
-  //val ab_cd = and(ab, cd)
-  val w14 = or(
-    equal[SimpleFeature, Integer](WHAT_ATTR, 1),
-    equal[SimpleFeature, Integer](WHAT_ATTR, 2),
-    equal[SimpleFeature, Integer](WHAT_ATTR, 3),
-    equal[SimpleFeature, Integer](WHAT_ATTR, 4))
-  val ab_w14 = and(ab, w14)
-
-  val filters = Seq(ab, cd, w14, ab_w14)
-
-  val bboxGeom = WKTUtils.read("POLYGON((0 0, 0 90, 180 90, 180 0, 0 0))")
-  val intersectsQuery = new com.googlecode.cqengine.query.geo.Intersects(whereSimpleAttribute, bboxGeom)
-
-  val bboxAB = and(ab, intersectsQuery)
-
-  val whereSimpleAttribute = new com.googlecode.cqengine.attribute.SimpleFeatureAttribute(classOf[Geometry], "Where")
-  val whoAttribute = new com.googlecode.cqengine.attribute.SimpleFeatureAttribute(classOf[String], "Who")
-  val whatAttribute = new com.googlecode.cqengine.attribute.SimpleFeatureAttribute(classOf[Integer], "What")
-
-  val sfas: Seq[Attribute[_, _]] = Seq(whoAttribute, whatAttribute, whereSimpleAttribute)
-
-  val lookup: Map[String, Attribute[SimpleFeature, _]] = Map("Where" -> whereSimpleAttribute,
-                   "Who" -> whoAttribute,
-                   "What" -> whatAttribute)
-
-  // NB: This is really, really bad;)
-  def lookupWithType[T](attributeName: String): Attribute[SimpleFeature, T] = {
-    lookup(attributeName).asInstanceOf[Attribute[SimpleFeature, T]]
-  }
-
-  case class SFTToCQ(sft: SimpleFeatureType) {
-    val attributes = sft.getAttributeDescriptors
-
-    val lookupMap: Map[String, Attribute[SimpleFeature, _]] = attributes.map { attr =>
-      val name = attr.getLocalName
-      name -> buildSimpleFeatureAttribute(attr.getType.getBinding, name)
-    }.toMap
-
-    def lookupWithType[T](attributeName: String): Attribute[SimpleFeature, T] = {
-      lookupMap(attributeName).asInstanceOf[Attribute[SimpleFeature, T]]
-    }
-
-    def buildSimpleFeatureAttribute[A](binding: Class[_], name: String): Attribute[SimpleFeature, _] = {
-      binding match {
-        case c if classOf[java.lang.String].isAssignableFrom(c) => new SimpleFeatureAttribute[String](name)
-        case c if classOf[java.lang.Integer].isAssignableFrom(c) => new SimpleFeatureAttribute[Integer](name)
-        case c if classOf[java.lang.Long].isAssignableFrom(c) => new SimpleFeatureAttribute[java.lang.Long](name)
-        case c if classOf[java.lang.Float].isAssignableFrom(c) => new SimpleFeatureAttribute[java.lang.Float](name)
-        case c if classOf[java.lang.Double].isAssignableFrom(c) => new SimpleFeatureAttribute[java.lang.Double](name)
-        case c if classOf[java.lang.Boolean].isAssignableFrom(c) => new SimpleFeatureAttribute[java.lang.Boolean](name)
-        case c if classOf[java.util.Date].isAssignableFrom(c) => new SimpleFeatureAttribute[java.util.Date](name)
-        case c if classOf[UUID].isAssignableFrom(c) => new SimpleFeatureAttribute[UUID](name)
-        case c if classOf[Geometry].isAssignableFrom(c) => new SimpleFeatureAttribute[Geometry](name)
-      }
-    }
-  }
-
-
-
-  val cqcache: IndexedCollection[SimpleFeature] = new ConcurrentIndexedCollection[SimpleFeature]()
-
-  cqcache.addIndex(HashIndex.onAttribute(ID))
-  cqcache.addIndex(HashIndex.onAttribute(WHO_ATTR))
-  cqcache.addIndex(NavigableIndex.onAttribute(WHAT_ATTR))
-  cqcache.addIndex(GeoIndex.onAttribute(whereSimpleAttribute))
-
-  def createOrUpdateFeature(fNew: CreateOrUpdate) = {
-    val sf = fNew.feature
-    val queryId = QueryFactory.equal(ID, sf.getID)
-    val res = cqcache.retrieve(queryId)
-    if (res.size > 0) {
-      for (holder <- res.iterator) {
-        cqcache.remove(holder)
-      }
-    }
-    cqcache.add(sf)
-  }
-
-  def getFeatures(query: Query[SimpleFeature]): FR = {
-    new DFR(sft, new DFI(cqcache.retrieve(query).iterator))
-  }
-
-  sft.getAttributeDescriptors.find(_.equals("Who"))
-
-  val cqattrs = sft.getAttributeDescriptors.map { ad =>
-      val binding: Class[_] = ad.getType.getBinding
-    bindingToSimpleFeatureAttribute(binding, ad.getLocalName)
-  }
-  
-  def bindingToSimpleFeatureAttribute[A](binding: Class[_], name: String) = {
-    binding  match {
-      case c if classOf[java.lang.String].isAssignableFrom(c) => new SimpleFeatureAttribute[String](name)
-      case c if classOf[java.lang.Integer].isAssignableFrom(c) => new SimpleFeatureAttribute[Integer](name)
-      case c if classOf[java.lang.Long].isAssignableFrom(c) => new SimpleFeatureAttribute[java.lang.Long](name)
-      case c if classOf[java.lang.Float].isAssignableFrom(c) => new SimpleFeatureAttribute[java.lang.Float](name)
-      case c if classOf[java.lang.Double].isAssignableFrom(c) => new SimpleFeatureAttribute[java.lang.Double](name)
-      case c if classOf[java.lang.Boolean].isAssignableFrom(c) => new SimpleFeatureAttribute[java.lang.Boolean](name)
-      case c if classOf[java.util.Date].isAssignableFrom(c) => new SimpleFeatureAttribute[java.util.Date](name)
-      case c if classOf[UUID].isAssignableFrom(c) => new SimpleFeatureAttribute[UUID](name)
-      case c if classOf[Geometry].isAssignableFrom(c) => new SimpleFeatureAttribute[Geometry](name)
-    }
-  }
-
-  def bindingDispatches(binding: Class[_], name: String) = {
-    binding match {
-      case c if classOf[java.lang.String].isAssignableFrom(c) => new SimpleFeatureStringAttribute(name)
-      case c if classOf[java.lang.Integer].isAssignableFrom(c) => new SimpleFeatureIntegerAttribute(name)
-    }
-  }
-
-}
-
-
-// Todo optimize by using field number rather than name.
-class SimpleFeatureAttribute[A](name: String)(implicit ct: ClassTag[A]) extends
-  SimpleAttribute[SimpleFeature, A](classOf[SimpleFeature], ct.runtimeClass.asInstanceOf[Class[A]], name) {
-  override def getValue(feature: SimpleFeature, queryOptions: QueryOptions): A = {
-    feature.getAttribute(name).asInstanceOf[A]
-  }
-}
-
-class SimpleFeatureIntegerAttribute(name: String) extends
-  SimpleAttribute[SimpleFeature, Integer](classOf[SimpleFeature], classOf[Integer], name) {
-  override def getValue(feature: SimpleFeature, queryOptions: QueryOptions): Integer =
-    feature.getAttribute(name).asInstanceOf[Integer]
-}
-
-class SimpleFeatureStringAttribute(name: String) extends
-  SimpleAttribute[SimpleFeature, String](classOf[SimpleFeature], classOf[String], name) {
-  override def getValue(feature: SimpleFeature, queryOptions: QueryOptions): String =
-    feature.getAttribute(name).asInstanceOf[String]
-}
-
 
 class GraphVizFilterVisitor extends FilterVisitor {
   override def visit(filter: And, extraData: scala.Any): AnyRef = {
