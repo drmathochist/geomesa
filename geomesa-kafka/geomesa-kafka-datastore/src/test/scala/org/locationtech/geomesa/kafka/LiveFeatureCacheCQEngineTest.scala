@@ -96,7 +96,7 @@ class LiveFeatureCacheCQEngineTest extends Specification with Mockito with Simpl
       lfc.clear()
 
       lfc.size() mustEqual 0
-      lfc.getReaderForFilter(wholeWorldFilter).getIterator.toList.asJava.size must equalTo(0)
+      lfc.getReaderForFilter(wholeWorldFilter).hasNext mustEqual false
     }
   }
 
@@ -115,7 +115,7 @@ class LiveFeatureCacheCQEngineTest extends Specification with Mockito with Simpl
       lfc.size() mustEqual 1
       lfc.getFeatureById("track0") must equalFeatureHolder(track0v0)
 
-      lfc.getReaderForFilter(wholeWorldFilter).hasNext mustEqual false
+      lfc.getReaderForFilter(wholeWorldFilter).getIterator.toList.asJava must containTheSameFeatureHoldersAs(track0v0)
    }
 
     "expire message correctly" >> {

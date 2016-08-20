@@ -8,14 +8,12 @@
 
 package org.locationtech.geomesa.kafka
 
-import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 import com.google.common.base.Ticker
 import com.google.common.cache._
-import com.googlecode.cqengine.attribute.{Attribute, SimpleAttribute}
+import com.googlecode.cqengine.attribute.Attribute
 import com.googlecode.cqengine.query.Query
-import com.googlecode.cqengine.query.option.QueryOptions
 import com.googlecode.cqengine.{ConcurrentIndexedCollection, IndexedCollection}
 import com.typesafe.scalalogging.LazyLogging
 import com.vividsolutions.jts.geom.Geometry
@@ -30,14 +28,13 @@ import org.opengis.filter._
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.collection.mutable
-import scala.reflect.ClassTag
 
 class LiveFeatureCacheCQEngine(sft: SimpleFeatureType,
                                expirationPeriod: Option[Long])(implicit ticker: Ticker)
   extends LiveFeatureCache with LazyLogging {
 
-  val defaultGeom: Attribute[SimpleFeature, Geometry] = new SimpleFeatureAttribute[Geometry](sft.getGeometryDescriptor.getLocalName)
-
+  val defaultGeom: Attribute[SimpleFeature, Geometry] =
+    new SimpleFeatureAttribute(classOf[Geometry], sft.getGeometryDescriptor.getLocalName)
 
   val attrs = SFTAttributes(sft)
 
@@ -81,12 +78,6 @@ class LiveFeatureCacheCQEngine(sft: SimpleFeatureType,
     }
   }
 
-  /*
-  cqcache.addIndex(HashIndex.onAttribute(WHO_ATTR))
-  cqcache.addIndex(NavigableIndex.onAttribute(WHAT_ATTR))
-  cqcache.addIndex(GeoIndex.onAttribute(whereSimpleAttribute))
-  */
-
   override def cleanUp(): Unit = { cache.cleanUp() }
 
   override def createOrUpdateFeature(update: CreateOrUpdate): Unit = {
@@ -118,14 +109,12 @@ class LiveFeatureCacheCQEngine(sft: SimpleFeatureType,
     cqcache.clear()        // Consider re-instanting the CQCache
   }
 
-//  override def size(filter: Filter): Int = ???
-
   def getReaderForFilter(filter: Filter): FR =
     filter match {
       case f: IncludeFilter => include(f)
       case f: Id            => fid(f)
       case f                => queryCQ(f)
-        // JNH: Consider testing filter rewrite before passing to CQEngine?
+      // JNH: Consider testing filter rewrite before passing to CQEngine?
     }
 
   def include(i: IncludeFilter) = {
