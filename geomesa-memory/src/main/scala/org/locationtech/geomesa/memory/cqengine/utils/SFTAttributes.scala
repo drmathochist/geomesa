@@ -31,6 +31,10 @@ case class SFTAttributes(sft: SimpleFeatureType) {
     lookupMap(attributeName).asInstanceOf[Attribute[SimpleFeature, T]]
   }
 
+  def lookupComparable[T <: Comparable[T]](attributeName: String): Attribute[SimpleFeature, T] = {
+    lookupMap(attributeName).asInstanceOf[Attribute[SimpleFeature, T]]
+  }
+
   def buildSimpleFeatureAttribute[A](binding: Class[_], name: String): Attribute[SimpleFeature, _] = {
     binding match {
       case c if classOf[java.lang.String].isAssignableFrom(c) => new SimpleFeatureAttribute(classOf[String], name)

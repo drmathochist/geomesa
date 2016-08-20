@@ -1,5 +1,6 @@
 package org.locationtech.geomesa.memory.cqengine.utils
 
+import com.googlecode.cqengine.attribute.Attribute
 import com.googlecode.cqengine.query.{Query, QueryFactory => CQF}
 import com.vividsolutions.jts.geom.Geometry
 import org.geotools.filter.visitor.AbstractFilterVisitor
@@ -29,7 +30,7 @@ class CQEngineQueryVisitor(sft: SimpleFeatureType) extends AbstractFilterVisitor
   }
 
   override def visit(filter: Or, data: scala.Any): AnyRef = {
-   val children = filter.getChildren
+    val children = filter.getChildren
 
     val query = children.map { f =>
       f.accept(this, null) match {
@@ -58,18 +59,33 @@ class CQEngineQueryVisitor(sft: SimpleFeatureType) extends AbstractFilterVisitor
     new CQIntersects(geomAttribute, geom)
   }
 
-  // JNH: This is tricky
   override def visit(filter: PropertyIsEqualTo, data: scala.Any): AnyRef = {
+    val (attribute: Attribute[SimpleFeature, Any], value: Any) = extractAttributeAndValue(filter)
+    new com.googlecode.cqengine.query.simple.Equal(attribute, value)
+  }
+
+  def extractAttributeAndValue(filter: Filter): (Attribute[SimpleFeature, Any], Any) = {
     val prop = getAttributeProperty(filter).get
-
     val attributeName = prop.name
-    val value = prop.literal.evaluate(null, classOf[Any])
-
-    val equalAttribute = lookup.lookup[Any](attributeName)
-
-    // The two Any's likely blows this up.
-    new com.googlecode.cqengine.query.simple.Equal(equalAttribute, value)
+    val attribute = lookup.lookup[Any](attributeName)
+    val value = prop.literal.evaluate(null, attribute.getAttributeType)
+    (attribute, value)
   }
 
   override def toString = s"CQEngineQueryVisit()"
+
+  override def visit(filter: PropertyIsGreaterThan, data: scala.Any): AnyRef = {
+    val (attribute: Attribute[SimpleFeature, Integer], value: Integer) = extractIntegerAttributeAndValue(filter)
+    new com.googlecode.cqengine.query.simple.GreaterThan(attribute, value, false)
+  }
+
+  // Dealing with the comparable business is tough:(
+  def extractIntegerAttributeAndValue(filter: Filter): (Attribute[SimpleFeature, Integer], Integer) = {
+    val prop = getAttributeProperty(filter).get
+    val attributeName = prop.name
+
+    val attribute = lookup.lookupComparable[Integer](attributeName)
+    val value = prop.literal.evaluate(null, attribute.getAttributeType)
+    (attribute, value)
+  }
 }

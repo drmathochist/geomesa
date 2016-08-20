@@ -90,7 +90,12 @@ class CQEngineQueryVisitorTest extends Specification {
         cqcache.retrieve(query).iterator().toList.size
       }
 
-      val testFilters = Seq("Who IN('Addams', 'Bierce')")
+      val testFilters = Seq(
+        "Who IN('Addams', 'Bierce')",
+        "What = 5",
+        "What > 3",
+        "What >= 3"
+      )
 
       def checkFilter(filter: Filter): MatchResult[Int] = {
         val gtCount = getGeoToolsCount(filter)
@@ -109,8 +114,6 @@ class CQEngineQueryVisitorTest extends Specification {
           }
         }
       }
-
-
     }
   }
 }
