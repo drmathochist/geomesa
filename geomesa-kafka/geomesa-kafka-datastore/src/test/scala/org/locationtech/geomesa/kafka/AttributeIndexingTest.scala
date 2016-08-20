@@ -204,7 +204,7 @@ class AttributeIndexingTest {
   implicit val ticker = Ticker.systemTicker()
   val lfc = new LiveFeatureCacheGuava(sft, None)
   val h2  = new LiveFeatureCacheH2(sft)
-  val cq  = new LiveFeatureCacheCQEngine(sft)
+  val cq  = new LiveFeatureCacheCQEngine(sft, None)
 
 
 
@@ -327,7 +327,7 @@ class AttributeIndexingTest {
 
   object CQData {
 
-    val ID = cq.ID
+    //val ID = cq.ID
     val WHO_ATTR = cq.attrs.lookup[String]("Who")
     val WHAT_ATTR = cq.attrs.lookup[Integer]("What")
     val WHERE_ATTR = cq.attrs.lookup[Geometry]("Where")

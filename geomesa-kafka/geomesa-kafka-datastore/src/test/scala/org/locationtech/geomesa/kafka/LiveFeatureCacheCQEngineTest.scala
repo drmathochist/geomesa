@@ -29,7 +29,7 @@ class LiveFeatureCacheCQEngineTest extends Specification with Mockito with Simpl
   "LiveFeatureCache" should {
 
     "handle a CreateOrUpdate message" >> {
-      val lfc = new LiveFeatureCacheCQEngine(sft)
+      val lfc = new LiveFeatureCacheCQEngine(sft, None)
 
       lfc.createOrUpdateFeature(CreateOrUpdate(new Instant(1000), track0v0))
 
@@ -38,7 +38,7 @@ class LiveFeatureCacheCQEngineTest extends Specification with Mockito with Simpl
     }
 
     "handle two CreateOrUpdate messages" >> {
-      val lfc = new LiveFeatureCacheCQEngine(sft)
+      val lfc = new LiveFeatureCacheCQEngine(sft, None)
 
       lfc.createOrUpdateFeature(CreateOrUpdate(new Instant(1000), track0v0))
       lfc.createOrUpdateFeature(CreateOrUpdate(new Instant(2000), track1v0))
@@ -48,7 +48,7 @@ class LiveFeatureCacheCQEngineTest extends Specification with Mockito with Simpl
     }
 
     "use the most recent version of a feature" >> {
-      val lfc = new LiveFeatureCacheCQEngine(sft)
+      val lfc = new LiveFeatureCacheCQEngine(sft, None)
 
       lfc.createOrUpdateFeature(CreateOrUpdate(new Instant(1000), track0v0))
       lfc.createOrUpdateFeature(CreateOrUpdate(new Instant(2000), track1v0))
@@ -59,7 +59,7 @@ class LiveFeatureCacheCQEngineTest extends Specification with Mockito with Simpl
     }
 
     "handle a Delete message" >> {
-      val lfc = new LiveFeatureCacheCQEngine(sft)
+      val lfc = new LiveFeatureCacheCQEngine(sft, None)
 
       lfc.createOrUpdateFeature(CreateOrUpdate(new Instant(1000), track0v0))
       lfc.createOrUpdateFeature(CreateOrUpdate(new Instant(2000), track1v0))
@@ -71,7 +71,7 @@ class LiveFeatureCacheCQEngineTest extends Specification with Mockito with Simpl
     }
 
     "handle a Clear message" >> {
-      val lfc = new LiveFeatureCacheCQEngine(sft)
+      val lfc = new LiveFeatureCacheCQEngine(sft, None)
 
       lfc.createOrUpdateFeature(CreateOrUpdate(new Instant(1000), track0v0))
       lfc.createOrUpdateFeature(CreateOrUpdate(new Instant(2000), track1v0))
