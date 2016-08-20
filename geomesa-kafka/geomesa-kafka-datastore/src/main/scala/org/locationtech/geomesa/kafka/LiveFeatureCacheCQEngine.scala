@@ -76,7 +76,7 @@ class LiveFeatureCacheCQEngine(sft: SimpleFeatureType,
   val features: mutable.Map[String, FeatureHolder] = cache.asMap().asScala
 
   def size(): Int = {
-    cache.size().toInt // This returns an approximate per Guava's docs.
+    features.size
   }
 
   def size(f: Filter): Int = {
@@ -93,7 +93,7 @@ class LiveFeatureCacheCQEngine(sft: SimpleFeatureType,
   cqcache.addIndex(GeoIndex.onAttribute(whereSimpleAttribute))
   */
 
-  override def cleanUp(): Unit = {}
+  override def cleanUp(): Unit = { cache.cleanUp() }
 
   override def createOrUpdateFeature(update: CreateOrUpdate): Unit = {
     val sf = update.feature

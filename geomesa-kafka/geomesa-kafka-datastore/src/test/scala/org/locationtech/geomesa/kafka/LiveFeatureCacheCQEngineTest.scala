@@ -35,6 +35,8 @@ class LiveFeatureCacheCQEngineTest extends Specification with Mockito with Simpl
 
       lfc.size() mustEqual 1
       lfc.getFeatureById("track0") must equalFeatureHolder(track0v0)
+
+      // TODO:  Add back spatial query.
     }
 
     "handle two CreateOrUpdate messages" >> {
@@ -45,6 +47,8 @@ class LiveFeatureCacheCQEngineTest extends Specification with Mockito with Simpl
 
       lfc.size() mustEqual 2
       lfc.getFeatureById("track1") must equalFeatureHolder(track1v0)
+
+      // TODO:  Add back spatial query.
     }
 
     "use the most recent version of a feature" >> {
@@ -56,6 +60,8 @@ class LiveFeatureCacheCQEngineTest extends Specification with Mockito with Simpl
 
       lfc.size() mustEqual 2
       lfc.getFeatureById("track0") must equalFeatureHolder(track0v1)
+
+      // TODO:  Add back spatial query.
     }
 
     "handle a Delete message" >> {
@@ -68,6 +74,8 @@ class LiveFeatureCacheCQEngineTest extends Specification with Mockito with Simpl
 
       lfc.size() mustEqual 1
       lfc.getFeatureById("track0") must beNull
+
+      // TODO:  Add back spatial query.
     }
 
     "handle a Clear message" >> {
@@ -84,6 +92,8 @@ class LiveFeatureCacheCQEngineTest extends Specification with Mockito with Simpl
       lfc.clear()
 
       lfc.size() mustEqual 0
+
+      // TODO:  Add back spatial query.
     }
   }
 
@@ -102,10 +112,11 @@ class LiveFeatureCacheCQEngineTest extends Specification with Mockito with Simpl
       lfc.size() mustEqual 1
       lfc.getFeatureById("track0") must equalFeatureHolder(track0v0)
 
+      // TODO:  Add back spatial query.
     }
 
     "expire message correctly" >> {
-      pending("expiration not implemented yet")
+      //pending("expiration not implemented yet")
 
       implicit val ticker = new MockTicker
       ticker.tic = 1000000L // ns
@@ -119,6 +130,7 @@ class LiveFeatureCacheCQEngineTest extends Specification with Mockito with Simpl
       lfc.size() mustEqual 0
       lfc.getFeatureById("track0") must beNull
 
+      // TODO:  Add back spatial query.
     }
   }
 }
