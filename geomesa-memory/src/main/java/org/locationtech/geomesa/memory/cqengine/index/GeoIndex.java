@@ -51,13 +51,11 @@ public class GeoIndex<A extends Geometry, O extends SimpleFeature> extends Abstr
 
     @Override
     public void init(ObjectStore<O> objectStore, QueryOptions queryOptions) {
-        System.out.println("Called init in GeoIndex");
         addAll(ObjectSet.fromObjectStore(objectStore, queryOptions), queryOptions);
     }
 
     @Override
     public boolean addAll(ObjectSet<O> objectSet, QueryOptions queryOptions) {
-        System.out.println("In addAll for GeoIndex");
         try {
             boolean modified = false;
 
@@ -77,7 +75,6 @@ public class GeoIndex<A extends Geometry, O extends SimpleFeature> extends Abstr
 
     @Override
     public boolean removeAll(ObjectSet<O> objectSet, QueryOptions queryOptions) {
-        System.out.println("In removeAll for GeoIndex");
         try {
             boolean modified = false;
 
@@ -97,7 +94,6 @@ public class GeoIndex<A extends Geometry, O extends SimpleFeature> extends Abstr
 
     @Override
     public void clear(QueryOptions queryOptions) {
-        System.out.println("Clearing the GeoIndex");
         this.index = new BucketIndex<SimpleFeature>(360, 180, new Envelope(-180.0, 180.0, -90.0, 90.0));
     }
 
@@ -106,7 +102,6 @@ public class GeoIndex<A extends Geometry, O extends SimpleFeature> extends Abstr
         return new ResultSet<O>() {
             @Override
             public Iterator<O> iterator() {
-                System.out.println("In retrieve's iterator method");
                 scala.collection.Iterator<SimpleFeature> iter = getSimpleFeatureIteratorInternal((Intersects) query, queryOptions);
 
                 // JNH: Fix this:!?
@@ -115,31 +110,26 @@ public class GeoIndex<A extends Geometry, O extends SimpleFeature> extends Abstr
 
             @Override
             public boolean contains(O object) {
-                System.out.println("In retrieve's contains method");
                 return false;
             }
 
             @Override
             public boolean matches(O object) {
-                System.out.println("In retrieve's matches method");
                 return false;
             }
 
             @Override
             public Query<O> getQuery() {
-                System.out.println("In retrieve's getQuery method");
                 return query;
             }
 
             @Override
             public QueryOptions getQueryOptions() {
-                System.out.println("In retrieve's getQueryOptions method");
                 return queryOptions;
             }
 
             @Override
             public int getRetrievalCost() {
-                System.out.println("In retrieve's getRetrievalCost method");
                 return INDEX_RETRIEVAL_COST;
             }
 
