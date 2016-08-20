@@ -43,7 +43,6 @@ class LiveFeatureCacheCQEngine(sft: SimpleFeatureType,
 
   // JNH: TODO: Add additional CQEngine indices ?
 
-
   // JNH: Do we need FeatureHolder anymore?
   private val cache: Cache[String, FeatureHolder] = {
     val cb = CacheBuilder.newBuilder().ticker(ticker)
@@ -131,11 +130,15 @@ class LiveFeatureCacheCQEngine(sft: SimpleFeatureType,
   def queryCQ(f: Filter): FR = {
     val visitor = new CQEngineQueryVisitor(sft)
 
-    val query = f.accept(visitor, null).asInstanceOf[Query[SimpleFeature]]
+    val query: Query[SimpleFeature] = f.accept(visitor, null) match {
+      case q: Query[SimpleFeature] => q
+      case _ => throw new Exception(s"Filter visitor didn't recognize filter: $f.")
+    }
     println(s"Querying CQEngine with $query")
     new DFR(sft, new DFI(cqcache.retrieve(query).iterator()))
   }
 
+  // TODO: Remove after testing is finished
   def getReaderForQuery(query: Query[SimpleFeature]): FR = {
     new DFR(sft, new DFI(cqcache.retrieve(query).iterator))
   }

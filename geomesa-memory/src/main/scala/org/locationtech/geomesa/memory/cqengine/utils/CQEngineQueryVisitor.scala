@@ -19,14 +19,24 @@ class CQEngineQueryVisitor(sft: SimpleFeatureType) extends AbstractFilterVisitor
   override def visit(filter: And, data: scala.Any): AnyRef = {
     val children = filter.getChildren
 
-    val query = children.map(_.accept(this, null).asInstanceOf[Query[SimpleFeature]]).toList
+    val query = children.map { f =>
+      f.accept(this, null) match {
+        case q: Query[SimpleFeature] => q
+        case _ => throw new Exception(s"Filter visitor didn't recognize filter: $f.")
+      }
+    }.toList
     new com.googlecode.cqengine.query.logical.And[SimpleFeature](query)
   }
 
   override def visit(filter: Or, data: scala.Any): AnyRef = {
    val children = filter.getChildren
 
-    val query = children.map(_.accept(this, null).asInstanceOf[Query[SimpleFeature]]).toList
+    val query = children.map { f =>
+      f.accept(this, null) match {
+        case q: Query[SimpleFeature] => q
+        case _ => throw new Exception(s"Filter visitor didn't recognize filter: $f.")
+      }
+    }.toList
     new com.googlecode.cqengine.query.logical.Or[SimpleFeature](query)
   }
 
