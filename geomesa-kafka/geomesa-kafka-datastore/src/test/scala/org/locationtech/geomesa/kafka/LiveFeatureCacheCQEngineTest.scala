@@ -9,9 +9,10 @@
 package org.locationtech.geomesa.kafka
 
 import com.google.common.base.Ticker
-import com.vividsolutions.jts.geom.Envelope
+import org.geotools.filter.text.ecql.ECQL
 import org.joda.time.Instant
 import org.junit.runner.RunWith
+import org.locationtech.geomesa.utils.geotools.Conversions.RichSimpleFeatureReader
 import org.specs2.mock.Mockito
 import org.specs2.mutable.Specification
 import org.specs2.runner.JUnitRunner
@@ -24,7 +25,9 @@ class LiveFeatureCacheCQEngineTest extends Specification with Mockito with Simpl
   import KafkaConsumerTestData._
 
   implicit val ticker = Ticker.systemTicker()
-  val wholeWorld = new Envelope(-180, 180, -90, 90)
+  //val wholeWorld = new Envelope(-180, 180, -90, 90)
+
+  val wholeWorldFilter = ECQL.toFilter("INTERSECTS(geom, POLYGON((-180 -90, -180 90, 180 90, 180 -90, -180 -90)))")
 
   "LiveFeatureCache" should {
 
@@ -36,7 +39,7 @@ class LiveFeatureCacheCQEngineTest extends Specification with Mockito with Simpl
       lfc.size() mustEqual 1
       lfc.getFeatureById("track0") must equalFeatureHolder(track0v0)
 
-      // TODO:  Add back spatial query.
+      lfc.getReaderForFilter(wholeWorldFilter).getIterator.toList.asJava must containTheSameFeatureHoldersAs(track0v0)
     }
 
     "handle two CreateOrUpdate messages" >> {
@@ -48,7 +51,7 @@ class LiveFeatureCacheCQEngineTest extends Specification with Mockito with Simpl
       lfc.size() mustEqual 2
       lfc.getFeatureById("track1") must equalFeatureHolder(track1v0)
 
-      // TODO:  Add back spatial query.
+      lfc.getReaderForFilter(wholeWorldFilter).getIterator.toList.asJava must containTheSameFeatureHoldersAs(track0v0, track1v0)
     }
 
     "use the most recent version of a feature" >> {
@@ -61,7 +64,7 @@ class LiveFeatureCacheCQEngineTest extends Specification with Mockito with Simpl
       lfc.size() mustEqual 2
       lfc.getFeatureById("track0") must equalFeatureHolder(track0v1)
 
-      // TODO:  Add back spatial query.
+      lfc.getReaderForFilter(wholeWorldFilter).getIterator.toList.asJava must containTheSameFeatureHoldersAs(track0v1, track1v0)
     }
 
     "handle a Delete message" >> {
@@ -75,7 +78,8 @@ class LiveFeatureCacheCQEngineTest extends Specification with Mockito with Simpl
       lfc.size() mustEqual 1
       lfc.getFeatureById("track0") must beNull
 
-      // TODO:  Add back spatial query.
+      lfc.getReaderForFilter(wholeWorldFilter).getIterator.toList.asJava must containTheSameFeatureHoldersAs(track1v0)
+
     }
 
     "handle a Clear message" >> {
@@ -92,8 +96,7 @@ class LiveFeatureCacheCQEngineTest extends Specification with Mockito with Simpl
       lfc.clear()
 
       lfc.size() mustEqual 0
-
-      // TODO:  Add back spatial query.
+      lfc.getReaderForFilter(wholeWorldFilter).getIterator.toList.asJava must beEmpty
     }
   }
 
@@ -112,8 +115,8 @@ class LiveFeatureCacheCQEngineTest extends Specification with Mockito with Simpl
       lfc.size() mustEqual 1
       lfc.getFeatureById("track0") must equalFeatureHolder(track0v0)
 
-      // TODO:  Add back spatial query.
-    }
+      lfc.getReaderForFilter(wholeWorldFilter).getIterator.toList.asJava must containTheSameFeatureHoldersAs(track0v0)
+   }
 
     "expire message correctly" >> {
       //pending("expiration not implemented yet")
@@ -130,7 +133,7 @@ class LiveFeatureCacheCQEngineTest extends Specification with Mockito with Simpl
       lfc.size() mustEqual 0
       lfc.getFeatureById("track0") must beNull
 
-      // TODO:  Add back spatial query.
+      lfc.getReaderForFilter(wholeWorldFilter).getIterator.toList.asJava must beEmpty
     }
   }
 }
