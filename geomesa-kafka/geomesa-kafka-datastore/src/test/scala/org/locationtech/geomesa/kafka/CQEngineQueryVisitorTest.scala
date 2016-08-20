@@ -2,7 +2,6 @@ package org.locationtech.geomesa.kafka
 
 import com.googlecode.cqengine.query.Query
 import com.googlecode.cqengine.query.{QueryFactory => QF}
-import com.googlecode.cqengine.query.geo.Intersects
 import com.vividsolutions.jts.geom.Geometry
 import org.geotools.factory.CommonFactoryFinder
 import org.geotools.filter.text.ecql.ECQL
@@ -12,6 +11,7 @@ import org.opengis.feature.simple.SimpleFeature
 import org.opengis.filter.Filter
 import org.specs2.mutable.Specification
 import org.junit.runner.RunWith
+import org.locationtech.geomesa.memory.cqengine.query.Intersects
 import org.specs2.runner.JUnitRunner
 
 @RunWith(classOf[JUnitRunner])
@@ -51,7 +51,7 @@ class CQEngineQueryVisitorTest extends Specification {
         )
       )
       examplesBlock {
-        for (i <- 0 until testFilters.size) {
+        for (i <- testFilters.indices) {
           "query_" + i.toString in {
             val t = testFilters(i)
             val query = t.filter.accept(visitor, null)

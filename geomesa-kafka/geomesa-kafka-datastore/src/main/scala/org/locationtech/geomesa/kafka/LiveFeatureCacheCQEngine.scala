@@ -14,19 +14,16 @@ import java.util.concurrent.TimeUnit
 import com.google.common.base.Ticker
 import com.google.common.cache._
 import com.googlecode.cqengine.attribute.{Attribute, SimpleAttribute}
-import com.googlecode.cqengine.index.geo.GeoIndex
-import com.googlecode.cqengine.index.hash.HashIndex
+import com.googlecode.cqengine.query.Query
 import com.googlecode.cqengine.query.option.QueryOptions
-import com.googlecode.cqengine.query.{Query, QueryFactory}
 import com.googlecode.cqengine.{ConcurrentIndexedCollection, IndexedCollection}
 import com.typesafe.scalalogging.LazyLogging
 import com.vividsolutions.jts.geom.Geometry
-import org.geotools.data.FilteringFeatureReader
+import org.locationtech.geomesa.memory.cqengine.index.GeoIndex
+import org.locationtech.geomesa.utils.geotools.Conversions._
 import org.locationtech.geomesa.utils.geotools._
 import org.opengis.feature.simple.{SimpleFeature, SimpleFeatureType}
 import org.opengis.filter._
-import org.locationtech.geomesa.utils.geotools.Conversions._
-import org.opengis.filter.spatial.{BBOX, Intersects, Within}
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
@@ -36,10 +33,6 @@ import scala.reflect.ClassTag
 class LiveFeatureCacheCQEngine(sft: SimpleFeatureType,
                                expirationPeriod: Option[Long])(implicit ticker: Ticker)
   extends LiveFeatureCache with LazyLogging {
-
-//  def this(sft: SimpleFeatureType) = {
-//    this(sft, null)
-//  }
 
   val defaultGeom: Attribute[SimpleFeature, Geometry] = new SimpleFeatureAttribute[Geometry](sft.getGeometryDescriptor.getLocalName)
 
@@ -65,7 +58,6 @@ class LiveFeatureCacheCQEngine(sft: SimpleFeatureType,
               logger.debug(s"Removing feature ${removal.getKey} due to expiration after ${ep}ms")
               val ret = cqcache.remove(removal.getValue.sf)
               println(s"Removing feature ${removal.getKey} due to expiration after ${ep}ms returned $ret from CQEngine")
-              //spatialIndex.remove(removal.getValue.env, removal.getValue.sf)
             }
           }
         })

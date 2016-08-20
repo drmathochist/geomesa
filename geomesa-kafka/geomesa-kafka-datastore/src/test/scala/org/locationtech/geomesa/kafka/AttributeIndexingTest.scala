@@ -9,10 +9,8 @@
 package org.locationtech.geomesa.kafka
 
 import com.google.common.base.Ticker
-import com.googlecode.cqengine.index.geo.GeoIndex
 import com.googlecode.cqengine.query.option.QueryOptions
-import com.googlecode.cqengine.query.Query
-import com.googlecode.cqengine.query.{QueryFactory=>CQF}
+import com.googlecode.cqengine.query.{Query, QueryFactory => CQF}
 import com.vividsolutions.jts.geom.{Geometry, Point}
 import org.geotools.factory.CommonFactoryFinder
 import org.geotools.feature.simple.SimpleFeatureBuilder
@@ -20,10 +18,12 @@ import org.geotools.filter.text.ecql.ECQL
 import org.geotools.filter.visitor.SimplifyingFilterVisitor
 import org.joda.time.{DateTime, DateTimeZone, Instant}
 import org.locationtech.geomesa.filter._
+import org.locationtech.geomesa.memory.cqengine.index.GeoIndex
+import org.locationtech.geomesa.memory.cqengine.query
 import org.locationtech.geomesa.utils.geotools.Conversions._
 import org.locationtech.geomesa.utils.geotools.SimpleFeatureTypes
 import org.locationtech.geomesa.utils.text.WKTUtils
-import org.opengis.feature.simple.{SimpleFeature, SimpleFeatureType}
+import org.opengis.feature.simple.SimpleFeature
 import org.opengis.filter._
 import org.opengis.filter.spatial._
 import org.opengis.filter.temporal._
@@ -355,7 +355,7 @@ class AttributeIndexingTest {
     val geoIndex = new GeoIndex(WHERE_ATTR)
     geoIndex.addAll(obset, qo)
 
-    val intersectsQuery = new com.googlecode.cqengine.query.geo.Intersects(WHERE_ATTR, bboxGeom)
+    val intersectsQuery = new query.Intersects(WHERE_ATTR, bboxGeom)
 
     val results = geoIndex.retrieve(intersectsQuery, qo)
 
