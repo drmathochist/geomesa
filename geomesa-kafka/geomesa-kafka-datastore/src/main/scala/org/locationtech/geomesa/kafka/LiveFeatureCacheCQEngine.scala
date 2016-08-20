@@ -34,11 +34,11 @@ class LiveFeatureCacheCQEngine(sft: SimpleFeatureType,
                                expirationPeriod: Option[Long])(implicit ticker: Ticker)
   extends LiveFeatureCache with LazyLogging {
 
-  val defaultGeom: Attribute[SimpleFeature, Geometry] =
-    new SimpleFeatureAttribute(classOf[Geometry], sft.getGeometryDescriptor.getLocalName)
-
   // NB: This is for testing at the minute.
   val attrs = SFTAttributes(sft)
+
+  val defaultGeom: Attribute[SimpleFeature, Geometry] =
+    new SimpleFeatureAttribute(classOf[Geometry], sft.getGeometryDescriptor.getLocalName)
 
   val cqcache: IndexedCollection[SimpleFeature] = new ConcurrentIndexedCollection[SimpleFeature]()
   cqcache.addIndex(GeoIndex.onAttribute(defaultGeom))

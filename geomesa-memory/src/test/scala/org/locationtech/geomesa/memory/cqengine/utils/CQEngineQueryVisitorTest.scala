@@ -1,10 +1,15 @@
 package org.locationtech.geomesa.memory.cqengine.utils
 
+import com.googlecode.cqengine.{ConcurrentIndexedCollection, IndexedCollection}
+import com.googlecode.cqengine.attribute.Attribute
 import com.googlecode.cqengine.query.{Query, QueryFactory => QF}
 import com.vividsolutions.jts.geom.Geometry
 import org.geotools.factory.CommonFactoryFinder
+import org.geotools.feature.DefaultFeatureCollection
 import org.geotools.filter.text.ecql.ECQL
 import org.junit.runner.RunWith
+import org.locationtech.geomesa.memory.cqengine.attribute.SimpleFeatureAttribute
+import org.locationtech.geomesa.memory.cqengine.index.GeoIndex
 import org.locationtech.geomesa.memory.cqengine.query.Intersects
 import org.locationtech.geomesa.utils.geotools.SimpleFeatureTypes
 import org.locationtech.geomesa.utils.text.WKTUtils
@@ -12,13 +17,14 @@ import org.opengis.feature.simple.SimpleFeature
 import org.opengis.filter.Filter
 import org.specs2.mutable.Specification
 import org.specs2.runner.JUnitRunner
+import SampleFeatures._
+import org.specs2.matcher.MatchResult
+
+import scala.collection.JavaConversions._
 
 @RunWith(classOf[JUnitRunner])
 class CQEngineQueryVisitorTest extends Specification {
-  val spec = "Who:String:index=full,What:Integer,When:Date,*Where:Point:srid=4326,Why:String"
-  val sft = SimpleFeatureTypes.createType("test", spec)
-  val cq = SFTAttributes(sft)
-  val ff = CommonFactoryFinder.getFilterFactory2
+  implicit def stringToFilter(s: String): Filter = ECQL.toFilter(s)
 
   "Visitor" should {
     "basic queries" should {
@@ -63,6 +69,48 @@ class CQEngineQueryVisitorTest extends Specification {
           }
         }
       }
+    }
+
+    "queries should return the same number of results" >> {
+      val feats = (0 until 1000).map(SampleFeatures.buildFeature)
+
+      // Set up CQEngine with a Geo-index.
+      val defaultGeom: Attribute[SimpleFeature, Geometry] =
+        new SimpleFeatureAttribute(classOf[Geometry], sft.getGeometryDescriptor.getLocalName)
+
+      val cqcache: IndexedCollection[SimpleFeature] = new ConcurrentIndexedCollection[SimpleFeature]()
+      cqcache.addIndex(GeoIndex.onAttribute(defaultGeom))
+      cqcache.addAll(feats)
+
+      def getGeoToolsCount(filter: Filter) = feats.count(filter.evaluate)
+      def getCQEngineCount(filter: Filter) = {
+        val visitor = new CQEngineQueryVisitor(sft)
+        val query: Query[SimpleFeature] = filter.accept(visitor, null).asInstanceOf[Query[SimpleFeature]]
+        println(s"Query for CQCache: $query")
+        cqcache.retrieve(query).iterator().toList.size
+      }
+
+      val testFilters = Seq("Who IN('Addams', 'Bierce')")
+
+      def checkFilter(filter: Filter): MatchResult[Int] = {
+        val gtCount = getGeoToolsCount(filter)
+        val cqCount = getCQEngineCount(filter)
+
+        println(s"GT: $gtCount CQ: $cqCount Filter: $filter")
+
+        gtCount must equalTo(cqCount)
+      }
+
+      examplesBlock {
+        for (i <- testFilters.indices) {
+          "query_correctness" + i.toString in {
+            val t = testFilters(i)
+            checkFilter(t)
+          }
+        }
+      }
+
+
     }
   }
 }

@@ -206,8 +206,6 @@ class AttributeIndexingTest {
   val h2  = new LiveFeatureCacheH2(sft)
   val cq  = new LiveFeatureCacheCQEngine(sft, None)
 
-
-
   val sfv = new SimplifyingFilterVisitor
 
   def benchmark(f: Filter) {
