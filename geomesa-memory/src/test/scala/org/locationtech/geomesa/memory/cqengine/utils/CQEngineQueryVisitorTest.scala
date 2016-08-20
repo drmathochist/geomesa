@@ -31,6 +31,10 @@ class CQEngineQueryVisitorTest extends Specification {
 
       val testFilters: Seq[QueryTest] = Seq(
         QueryTest(
+          ECQL.toFilter("BBOX(Where, 0, 0, 180, 90)"),
+          new Intersects(whereAttr, WKTUtils.read("POLYGON((0 0, 0 90, 180 90, 180 0, 0 0))"))
+        ),
+        QueryTest(
           ECQL.toFilter("INTERSECTS(Where, POLYGON((0 0, 0 90, 180 90, 180 0, 0 0)))"),
           new Intersects(whereAttr, WKTUtils.read("POLYGON((0 0, 0 90, 180 90, 180 0, 0 0))"))
         ),

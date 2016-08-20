@@ -17,8 +17,6 @@ class CQEngineQueryVisitor(sft: SimpleFeatureType) extends AbstractFilterVisitor
   val lookup = SFTAttributes(sft)
 
   override def visit(filter: And, data: scala.Any): AnyRef = {
-    //super.visit(filter, data)
-
     val children = filter.getChildren
 
     val query = children.map(_.accept(this, null).asInstanceOf[Query[SimpleFeature]]).toList
@@ -26,12 +24,19 @@ class CQEngineQueryVisitor(sft: SimpleFeatureType) extends AbstractFilterVisitor
   }
 
   override def visit(filter: Or, data: scala.Any): AnyRef = {
-    //super.visit(filter, data)
-
-    val children = filter.getChildren
+   val children = filter.getChildren
 
     val query = children.map(_.accept(this, null).asInstanceOf[Query[SimpleFeature]]).toList
     new com.googlecode.cqengine.query.logical.Or[SimpleFeature](query)
+  }
+
+  override def visit(filter: BBOX, data: scala.Any): AnyRef = {
+    val attributeName = filter.getExpression1.asInstanceOf[PropertyName].getPropertyName
+    val geom = filter.getExpression2.asInstanceOf[Literal].evaluate(null, classOf[Geometry])
+
+    val geomAttribute = lookup.lookup[Geometry](attributeName)
+
+    new CQIntersects(geomAttribute, geom)
   }
 
   override def visit(filter: Intersects, data: scala.Any): AnyRef = {
