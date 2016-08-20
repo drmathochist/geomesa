@@ -13,7 +13,6 @@ import org.geotools.filter.text.ecql.ECQL
 import org.joda.time.Instant
 import org.junit.runner.RunWith
 import org.locationtech.geomesa.utils.geotools.Conversions.RichSimpleFeatureReader
-import org.opengis.feature.simple.SimpleFeature
 import org.specs2.mock.Mockito
 import org.specs2.mutable.Specification
 import org.specs2.runner.JUnitRunner
