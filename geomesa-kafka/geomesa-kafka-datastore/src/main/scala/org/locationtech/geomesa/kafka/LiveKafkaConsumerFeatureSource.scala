@@ -45,7 +45,7 @@ class LiveKafkaConsumerFeatureSource(e: ContentEntry,
                                     (implicit ticker: Ticker = Ticker.systemTicker())
   extends KafkaConsumerFeatureSource(e, sft, q) with Runnable with Closeable with LazyLogging {
 
-  private[kafka] val featureCache: LiveFeatureCache = new LiveFeatureCacheCQEngine(sft, expirationPeriod)
+  /*private[kafka] for testing only */val featureCache: LiveFeatureCache = new LiveFeatureCacheCQEngine(sft, expirationPeriod)
 
   private lazy val contentState = entry.getState(getTransaction)
 

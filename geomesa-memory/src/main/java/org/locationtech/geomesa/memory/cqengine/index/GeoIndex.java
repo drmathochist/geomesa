@@ -80,7 +80,6 @@ public class GeoIndex<A extends Geometry, O extends SimpleFeature> extends Abstr
 
             for (O object : objectSet) {
                 Envelope env = ((Geometry)object.getDefaultGeometry()).getEnvelopeInternal();
-                System.out.println("Removing " + object + " with envelope " + env);
                 index.remove(env, object);
                 modified = true;
             }
