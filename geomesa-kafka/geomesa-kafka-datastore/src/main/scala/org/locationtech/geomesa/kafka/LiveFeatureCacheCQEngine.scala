@@ -19,7 +19,9 @@ import com.googlecode.cqengine.query.option.QueryOptions
 import com.googlecode.cqengine.{ConcurrentIndexedCollection, IndexedCollection}
 import com.typesafe.scalalogging.LazyLogging
 import com.vividsolutions.jts.geom.Geometry
+import org.locationtech.geomesa.memory.cqengine.attribute.SimpleFeatureAttribute
 import org.locationtech.geomesa.memory.cqengine.index.GeoIndex
+import org.locationtech.geomesa.memory.cqengine.utils.{CQEngineQueryVisitor, SFTAttributes}
 import org.locationtech.geomesa.utils.geotools.Conversions._
 import org.locationtech.geomesa.utils.geotools._
 import org.opengis.feature.simple.{SimpleFeature, SimpleFeatureType}
@@ -150,39 +152,4 @@ class LiveFeatureCacheCQEngine(sft: SimpleFeatureType,
   }
 }
 
-case class SFTAttributes(sft: SimpleFeatureType) {
-  private val attributes = sft.getAttributeDescriptors
-
-  private val lookupMap: Map[String, Attribute[SimpleFeature, _]] = attributes.map { attr =>
-    val name = attr.getLocalName
-    name -> buildSimpleFeatureAttribute(attr.getType.getBinding, name)
-  }.toMap
-
-  // TODO: this is really, really bad :)
-  def lookup[T](attributeName: String): Attribute[SimpleFeature, T] = {
-    lookupMap(attributeName).asInstanceOf[Attribute[SimpleFeature, T]]
-  }
-
-  def buildSimpleFeatureAttribute[A](binding: Class[_], name: String): Attribute[SimpleFeature, _] = {
-    binding match {
-      case c if classOf[java.lang.String].isAssignableFrom(c) => new SimpleFeatureAttribute[String](name)
-      case c if classOf[java.lang.Integer].isAssignableFrom(c) => new SimpleFeatureAttribute[Integer](name)
-      case c if classOf[java.lang.Long].isAssignableFrom(c) => new SimpleFeatureAttribute[java.lang.Long](name)
-      case c if classOf[java.lang.Float].isAssignableFrom(c) => new SimpleFeatureAttribute[java.lang.Float](name)
-      case c if classOf[java.lang.Double].isAssignableFrom(c) => new SimpleFeatureAttribute[java.lang.Double](name)
-      case c if classOf[java.lang.Boolean].isAssignableFrom(c) => new SimpleFeatureAttribute[java.lang.Boolean](name)
-      case c if classOf[java.util.Date].isAssignableFrom(c) => new SimpleFeatureAttribute[java.util.Date](name)
-      case c if classOf[UUID].isAssignableFrom(c) => new SimpleFeatureAttribute[UUID](name)
-      case c if classOf[Geometry].isAssignableFrom(c) => new SimpleFeatureAttribute[Geometry](name)
-    }
-  }
-}
-
-// TODO: optimize by using field number rather than name.
-class SimpleFeatureAttribute[A](name: String)(implicit ct: ClassTag[A]) extends
-  SimpleAttribute[SimpleFeature, A](classOf[SimpleFeature], ct.runtimeClass.asInstanceOf[Class[A]], name) {
-  override def getValue(feature: SimpleFeature, queryOptions: QueryOptions): A = {
-    feature.getAttribute(name).asInstanceOf[A]
-  }
-}
 

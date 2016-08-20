@@ -1,11 +1,10 @@
-package org.locationtech.geomesa.kafka
-
+package org.locationtech.geomesa.memory.cqengine.utils
 
 import com.googlecode.cqengine.query.{Query, QueryFactory => CQF}
 import com.vividsolutions.jts.geom.Geometry
 import org.geotools.filter.visitor.AbstractFilterVisitor
-import org.locationtech.geomesa.filter._
 import org.locationtech.geomesa.memory.cqengine.query.{Intersects => CQIntersects}
+import org.locationtech.geomesa.filter._
 import org.opengis.feature.simple.{SimpleFeature, SimpleFeatureType}
 import org.opengis.filter._
 import org.opengis.filter.expression.{Literal, PropertyName}
