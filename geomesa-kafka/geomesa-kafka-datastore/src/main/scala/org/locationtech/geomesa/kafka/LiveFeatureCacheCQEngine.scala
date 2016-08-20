@@ -14,6 +14,7 @@ import com.google.common.base.Ticker
 import com.google.common.cache._
 import com.googlecode.cqengine.attribute.Attribute
 import com.googlecode.cqengine.query.Query
+import com.googlecode.cqengine.query.simple.All
 import com.googlecode.cqengine.{ConcurrentIndexedCollection, IndexedCollection}
 import com.typesafe.scalalogging.LazyLogging
 import com.vividsolutions.jts.geom.Geometry
@@ -36,6 +37,7 @@ class LiveFeatureCacheCQEngine(sft: SimpleFeatureType,
   val defaultGeom: Attribute[SimpleFeature, Geometry] =
     new SimpleFeatureAttribute(classOf[Geometry], sft.getGeometryDescriptor.getLocalName)
 
+  // NB: This is for testing at the minute.
   val attrs = SFTAttributes(sft)
 
   val cqcache: IndexedCollection[SimpleFeature] = new ConcurrentIndexedCollection[SimpleFeature]()
@@ -118,7 +120,7 @@ class LiveFeatureCacheCQEngine(sft: SimpleFeatureType,
 
   def include(i: IncludeFilter) = {
     println("Running Filter.INCLUDE")
-    new DFR(sft, new DFI(features.valuesIterator.map(_.sf)))
+    new DFR(sft, new DFI(cqcache.retrieve(new All(classOf[SimpleFeature])).iterator()))
   }
 
   def fid(ids: Id): FR = {
