@@ -72,35 +72,36 @@
             <artifactId>gt-data</artifactId>
         </dependency>
 
-        <!-- testing different in-memory databases -->
-        <!-- GeoTools H2 -->
-        <dependency>
-            <groupId>org.geotools.jdbc</groupId>
-            <artifactId>gt-jdbc-h2</artifactId>
-            <version>${gt.version}</version>
-        </dependency>
+        <!--&lt;!&ndash; testing different in-memory databases &ndash;&gt;-->
+        <!--&lt;!&ndash; GeoTools H2 &ndash;&gt;-->
+        <!--<dependency>-->
+            <!--<groupId>org.geotools.jdbc</groupId>-->
+            <!--<artifactId>gt-jdbc-h2</artifactId>-->
+            <!--<version>${gt.version}</version>-->
+        <!--</dependency>-->
 
-        <!-- GeoTools H2GIS (h2gis-gs) -->
-        <dependency>
-            <groupId>org.orbisgis</groupId>
-            <artifactId>h2gis-gs</artifactId>
-            <version>1.0.1</version>
-        </dependency>
-        <dependency>
-            <groupId>com.h2database</groupId>
-            <artifactId>h2</artifactId>
-            <version>1.4.190</version>
-        </dependency>
-        <dependency>
-            <groupId>org.orbisgis</groupId>
-            <artifactId>h2spatial-ext</artifactId>
-            <version>1.2.3</version>
-        </dependency>
-        <dependency>
-            <groupId>org.orbisgis</groupId>
-            <artifactId>spatial-utilities</artifactId>
-            <version>1.2.3</version>
-        </dependency>
+        <!--&lt;!&ndash; GeoTools H2GIS (h2gis-gs) &ndash;&gt;-->
+        <!--<dependency>-->
+            <!--<groupId>org.orbisgis</groupId>-->
+            <!--<artifactId>h2gis-gs</artifactId>-->
+            <!--<version>1.0.1</version>-->
+        <!--</dependency>-->
+        <!--<dependency>-->
+            <!--<groupId>com.h2database</groupId>-->
+            <!--<artifactId>h2</artifactId>-->
+            <!--<version>1.4.190</version>-->
+        <!--</dependency>-->
+        <!--<dependency>-->
+            <!--<groupId>org.orbisgis</groupId>-->
+            <!--<artifactId>h2spatial-ext</artifactId>-->
+            <!--<version>1.2.3</version>-->
+        <!--</dependency>-->
+
+        <!--<dependency>-->
+            <!--<groupId>org.orbisgis</groupId>-->
+            <!--<artifactId>spatial-utilities</artifactId>-->
+            <!--<version>1.2.3</version>-->
+        <!--</dependency>-->
 
         <!-- GeoTools Spatialite -->
         <dependency>
