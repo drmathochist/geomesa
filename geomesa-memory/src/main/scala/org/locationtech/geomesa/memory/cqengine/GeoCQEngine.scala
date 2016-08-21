@@ -1,0 +1,84 @@
+/***********************************************************************
+* Copyright (c) 2013-2016 Commonwealth Computer Research, Inc.
+* All rights reserved. This program and the accompanying materials
+* are made available under the terms of the Apache License, Version 2.0
+* which accompanies this distribution and is available at
+* http://www.opensource.org/licenses/apache2.0.php.
+*************************************************************************/
+
+package org.locationtech.geomesa.memory.cqengine
+
+import org.opengis.feature.simple.SimpleFeatureType
+
+import com.google.common.base.Ticker
+import com.google.common.cache._
+import com.googlecode.cqengine.attribute.Attribute
+import com.googlecode.cqengine.query.Query
+import com.googlecode.cqengine.query.simple.All
+import com.googlecode.cqengine.{ConcurrentIndexedCollection, IndexedCollection}
+import com.typesafe.scalalogging.LazyLogging
+import com.vividsolutions.jts.geom.Geometry
+import org.locationtech.geomesa.memory.cqengine.attribute.SimpleFeatureAttribute
+import org.locationtech.geomesa.memory.cqengine.index.GeoIndex
+import org.locationtech.geomesa.memory.cqengine.utils.{CQEngineQueryVisitor, SFTAttributes}
+import org.locationtech.geomesa.utils.geotools.Conversions._
+import org.locationtech.geomesa.utils.geotools._
+import org.opengis.feature.simple.{SimpleFeature, SimpleFeatureType}
+import org.opengis.filter._
+
+import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
+import scala.collection.mutable
+
+class GeoCQEngine(sft: SimpleFeatureType) {
+  val defaultGeom: Attribute[SimpleFeature, Geometry] =
+    new SimpleFeatureAttribute(classOf[Geometry], sft.getGeometryDescriptor.getLocalName)
+
+  val cqcache: IndexedCollection[SimpleFeature] = new ConcurrentIndexedCollection[SimpleFeature]()
+  cqcache.addIndex(GeoIndex.onAttribute(defaultGeom))
+
+
+  def remove(sf: SimpleFeature) {
+    cqcache.remove(sf)
+  }
+
+  def add(sf: SimpleFeature) {
+    cqcache.add(sf)
+  }
+
+  def clear(): Unit = {
+    cqcache.clear()
+  }
+
+  // NB: We expect that FID filters have been handled previously
+  def getReaderForFilter(filter: Filter): FR =
+    filter match {
+      case f: IncludeFilter => include(f)
+      case f                => queryCQ(f)
+      // JNH: Consider testing filter rewrite before passing to CQEngine?
+    }
+
+
+  def queryCQ(f: Filter): FR = {
+    val visitor = new CQEngineQueryVisitor(sft)
+
+    val query: Query[SimpleFeature] = f.accept(visitor, null) match {
+      case q: Query[SimpleFeature] => q
+      case _ => throw new Exception(s"Filter visitor didn't recognize filter: $f.")
+    }
+    println(s"Querying CQEngine with $query")
+    new DFR(sft, new DFI(cqcache.retrieve(query).iterator()))
+  }
+
+  def include(i: IncludeFilter) = {
+    println("Running Filter.INCLUDE")
+    new DFR(sft, new DFI(cqcache.retrieve(new All(classOf[SimpleFeature])).iterator()))
+  }
+
+  // This is a convenience method to query CQEngine directly.
+  def getReaderForQuery(query: Query[SimpleFeature]): FR = {
+    new DFR(sft, new DFI(cqcache.retrieve(query).iterator))
+  }
+
+
+}

@@ -94,7 +94,8 @@ class CQEngineQueryVisitorTest extends Specification {
         "Who IN('Addams', 'Bierce')",
         "What = 5",
         "What > 3",
-        "What >= 3"
+//        "What >= 3",
+        "INTERSECTS(Where, POLYGON((0 0, 0 90, 180 90, 180 0, 0 0))) AND Who IN('Addams', 'Bierce')"
       )
 
       def checkFilter(filter: Filter): MatchResult[Int] = {
@@ -108,8 +109,8 @@ class CQEngineQueryVisitorTest extends Specification {
 
       examplesBlock {
         for (i <- testFilters.indices) {
-          "query_correctness" + i.toString in {
-            val t = testFilters(i)
+          val t = testFilters(i)
+          s"for filter $t" in {
             checkFilter(t)
           }
         }

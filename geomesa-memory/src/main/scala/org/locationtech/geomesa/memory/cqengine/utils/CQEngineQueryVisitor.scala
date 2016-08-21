@@ -72,6 +72,7 @@ class CQEngineQueryVisitor(sft: SimpleFeatureType) extends AbstractFilterVisitor
     (attribute, value)
   }
 
+  // JNH: TODO: revisit if this this needed.
   override def toString = s"CQEngineQueryVisit()"
 
   override def visit(filter: PropertyIsGreaterThan, data: scala.Any): AnyRef = {

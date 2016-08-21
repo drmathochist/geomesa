@@ -1,10 +1,10 @@
 /***********************************************************************
-  * Copyright (c) 2013-2016 Commonwealth Computer Research, Inc.
-  * All rights reserved. This program and the accompanying materials
-  * are made available under the terms of the Apache License, Version 2.0
-  * which accompanies this distribution and is available at
-  * http://www.opensource.org/licenses/apache2.0.php.
-  *************************************************************************/
+* Copyright (c) 2013-2016 Commonwealth Computer Research, Inc.
+* All rights reserved. This program and the accompanying materials
+* are made available under the terms of the Apache License, Version 2.0
+* which accompanies this distribution and is available at
+* http://www.opensource.org/licenses/apache2.0.php.
+*************************************************************************/
 
 package org.locationtech.geomesa.kafka
 
@@ -12,15 +12,10 @@ import java.util.concurrent.TimeUnit
 
 import com.google.common.base.Ticker
 import com.google.common.cache._
-import com.googlecode.cqengine.attribute.Attribute
 import com.googlecode.cqengine.query.Query
-import com.googlecode.cqengine.query.simple.All
-import com.googlecode.cqengine.{ConcurrentIndexedCollection, IndexedCollection}
 import com.typesafe.scalalogging.LazyLogging
-import com.vividsolutions.jts.geom.Geometry
-import org.locationtech.geomesa.memory.cqengine.attribute.SimpleFeatureAttribute
-import org.locationtech.geomesa.memory.cqengine.index.GeoIndex
-import org.locationtech.geomesa.memory.cqengine.utils.{CQEngineQueryVisitor, SFTAttributes}
+import org.locationtech.geomesa.memory.cqengine.GeoCQEngine
+import org.locationtech.geomesa.memory.cqengine.utils.SFTAttributes
 import org.locationtech.geomesa.utils.geotools.Conversions._
 import org.locationtech.geomesa.utils.geotools._
 import org.opengis.feature.simple.{SimpleFeature, SimpleFeatureType}
@@ -37,11 +32,13 @@ class LiveFeatureCacheCQEngine(sft: SimpleFeatureType,
   // NB: This is for testing at the minute.
   val attrs = SFTAttributes(sft)
 
-  val defaultGeom: Attribute[SimpleFeature, Geometry] =
-    new SimpleFeatureAttribute(classOf[Geometry], sft.getGeometryDescriptor.getLocalName)
+  val geocq = new GeoCQEngine(sft)
 
-  val cqcache: IndexedCollection[SimpleFeature] = new ConcurrentIndexedCollection[SimpleFeature]()
-  cqcache.addIndex(GeoIndex.onAttribute(defaultGeom))
+//  val defaultGeom: Attribute[SimpleFeature, Geometry] =
+//    new SimpleFeatureAttribute(classOf[Geometry], sft.getGeometryDescriptor.getLocalName)
+//
+//  val cqcache: IndexedCollection[SimpleFeature] = new ConcurrentIndexedCollection[SimpleFeature]()
+//  cqcache.addIndex(GeoIndex.onAttribute(defaultGeom))
 
   // JNH: TODO: Add additional CQEngine indices ?
 
@@ -56,7 +53,7 @@ class LiveFeatureCacheCQEngine(sft: SimpleFeatureType,
               println(s"Removing feature ${removal.getKey} due to expiration after ${ep}ms")
 
               logger.debug(s"Removing feature ${removal.getKey} due to expiration after ${ep}ms")
-              val ret = cqcache.remove(removal.getValue.sf)
+              val ret = geocq.remove(removal.getValue.sf)
               println(s"Removing feature ${removal.getKey} due to expiration after ${ep}ms returned $ret from CQEngine")
             }
           }
@@ -86,10 +83,10 @@ class LiveFeatureCacheCQEngine(sft: SimpleFeatureType,
     val id = sf.getID
     val old = cache.getIfPresent(id)
     if (old != null) {
-      cqcache.remove(old.sf)
+      geocq.remove(old.sf)
     }
     val env = sf.geometry.getEnvelopeInternal
-    cqcache.add(sf)
+    geocq.add(sf)
     cache.put(id, FeatureHolder(sf, env))
   }
 
@@ -100,28 +97,22 @@ class LiveFeatureCacheCQEngine(sft: SimpleFeatureType,
     val old = cache.getIfPresent(id)
     if (old != null) {
       //spatialIndex.remove(old.env, old.sf)
-      cqcache.remove(old.sf)
+      geocq.remove(old.sf)
       cache.invalidate(id)
     }
   }
 
   override def clear(): Unit = {
     cache.invalidateAll()
-    cqcache.clear()        // Consider re-instanting the CQCache
+    geocq.clear()        // Consider re-instanting the CQCache
   }
 
   def getReaderForFilter(filter: Filter): FR =
     filter match {
-      case f: IncludeFilter => include(f)
       case f: Id            => fid(f)
-      case f                => queryCQ(f)
+      case f                => geocq.getReaderForFilter(f)
       // JNH: Consider testing filter rewrite before passing to CQEngine?
     }
-
-  def include(i: IncludeFilter) = {
-    println("Running Filter.INCLUDE")
-    new DFR(sft, new DFI(cqcache.retrieve(new All(classOf[SimpleFeature])).iterator()))
-  }
 
   def fid(ids: Id): FR = {
     println("Queried for IDs; using Guava ID index")
@@ -129,20 +120,9 @@ class LiveFeatureCacheCQEngine(sft: SimpleFeatureType,
     new DFR(sft, new DFI(iter))
   }
 
-  def queryCQ(f: Filter): FR = {
-    val visitor = new CQEngineQueryVisitor(sft)
-
-    val query: Query[SimpleFeature] = f.accept(visitor, null) match {
-      case q: Query[SimpleFeature] => q
-      case _ => throw new Exception(s"Filter visitor didn't recognize filter: $f.")
-    }
-    println(s"Querying CQEngine with $query")
-    new DFR(sft, new DFI(cqcache.retrieve(query).iterator()))
-  }
-
   // TODO: Remove after testing is finished
   def getReaderForQuery(query: Query[SimpleFeature]): FR = {
-    new DFR(sft, new DFI(cqcache.retrieve(query).iterator))
+    new DFR(sft, new DFI(geocq.getReaderForQuery(query).getIterator))
   }
 }
 
