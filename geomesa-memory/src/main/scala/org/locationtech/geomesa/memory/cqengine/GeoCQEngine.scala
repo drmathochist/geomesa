@@ -9,7 +9,6 @@
 package org.locationtech.geomesa.memory.cqengine
 
 import org.opengis.feature.simple.SimpleFeatureType
-
 import com.google.common.base.Ticker
 import com.google.common.cache._
 import com.googlecode.cqengine.attribute.Attribute
@@ -20,7 +19,7 @@ import com.typesafe.scalalogging.LazyLogging
 import com.vividsolutions.jts.geom.Geometry
 import org.locationtech.geomesa.memory.cqengine.attribute.SimpleFeatureAttribute
 import org.locationtech.geomesa.memory.cqengine.index.GeoIndex
-import org.locationtech.geomesa.memory.cqengine.utils.{CQEngineQueryVisitor, SFTAttributes}
+import org.locationtech.geomesa.memory.cqengine.utils.{CQEngineQueryVisitor, CQIndexingOptions, SFTAttributes}
 import org.locationtech.geomesa.utils.geotools.Conversions._
 import org.locationtech.geomesa.utils.geotools._
 import org.opengis.feature.simple.{SimpleFeature, SimpleFeatureType}
@@ -31,12 +30,7 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 
 class GeoCQEngine(sft: SimpleFeatureType) {
-  val defaultGeom: Attribute[SimpleFeature, Geometry] =
-    new SimpleFeatureAttribute(classOf[Geometry], sft.getGeometryDescriptor.getLocalName)
-
-  val cqcache: IndexedCollection[SimpleFeature] = new ConcurrentIndexedCollection[SimpleFeature]()
-  cqcache.addIndex(GeoIndex.onAttribute(defaultGeom))
-
+  val cqcache = CQIndexingOptions.buildIndexedCollection(sft)
 
   def remove(sf: SimpleFeature) {
     cqcache.remove(sf)
@@ -46,7 +40,7 @@ class GeoCQEngine(sft: SimpleFeatureType) {
     cqcache.add(sf)
   }
 
-  def clear(): Unit = {
+  def clear() {
     cqcache.clear()
   }
 
@@ -58,7 +52,6 @@ class GeoCQEngine(sft: SimpleFeatureType) {
       // JNH: Consider testing filter rewrite before passing to CQEngine?
     }
 
-
   def queryCQ(f: Filter): FR = {
     val visitor = new CQEngineQueryVisitor(sft)
 
@@ -66,6 +59,7 @@ class GeoCQEngine(sft: SimpleFeatureType) {
       case q: Query[SimpleFeature] => q
       case _ => throw new Exception(s"Filter visitor didn't recognize filter: $f.")
     }
+    // TODO: Replace println with logging.
     println(s"Querying CQEngine with $query")
     new DFR(sft, new DFI(cqcache.retrieve(query).iterator()))
   }
@@ -79,6 +73,4 @@ class GeoCQEngine(sft: SimpleFeatureType) {
   def getReaderForQuery(query: Query[SimpleFeature]): FR = {
     new DFR(sft, new DFI(cqcache.retrieve(query).iterator))
   }
-
-
 }

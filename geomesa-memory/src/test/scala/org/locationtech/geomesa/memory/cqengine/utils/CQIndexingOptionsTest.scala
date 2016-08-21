@@ -8,40 +8,30 @@
 
 package org.locationtech.geomesa.memory.cqengine.utils
 
-import com.googlecode.cqengine.{ConcurrentIndexedCollection, IndexedCollection}
-import com.googlecode.cqengine.attribute.Attribute
-import com.googlecode.cqengine.query.{Query, QueryFactory => QF}
+import com.googlecode.cqengine.index.Index
+import com.googlecode.cqengine.index.support.AbstractAttributeIndex
 import com.vividsolutions.jts.geom.Geometry
-import org.geotools.factory.CommonFactoryFinder
-import org.geotools.feature.DefaultFeatureCollection
-import org.geotools.filter.text.ecql.ECQL
 import org.junit.runner.RunWith
-import org.locationtech.geomesa.memory.cqengine.attribute.SimpleFeatureAttribute
 import org.locationtech.geomesa.memory.cqengine.index.GeoIndex
-import org.locationtech.geomesa.memory.cqengine.query.Intersects
+import org.locationtech.geomesa.memory.cqengine.utils.CQIndexingOptions._
 import org.locationtech.geomesa.utils.geotools.SimpleFeatureTypes
-import org.locationtech.geomesa.utils.text.WKTUtils
 import org.opengis.feature.simple.SimpleFeature
-import org.opengis.filter.Filter
 import org.specs2.mutable.Specification
 import org.specs2.runner.JUnitRunner
-import SampleFeatures._
-import org.specs2.matcher.MatchResult
-import CQIndexingOptions._
 
 import scala.collection.JavaConversions._
 
 @RunWith(classOf[JUnitRunner])
 class CQIndexingOptionsTest extends Specification {
 
+  val spec = "Who:String:cq_index=default," +
+             "What:Integer:cq_index=unique," +
+             "When:Date:cq_index=navigable," +
+             "*Where:Point:srid=4326," +
+             "Why:String:cq_index=hash"
+
   "CQ Indexing options" should {
     "be configurable from SimpleFeatureTypes" >> {
-      val spec = "Who:String:cq_index=default," +
-        "What:Integer:cq_index=unique," +
-        "When:Date:cq_index=navigable," +
-        "*Where:Point:srid=4326," +
-        "Why:String:cq_index=hash"
-
       val sft = SimpleFeatureTypes.createType("test", spec)
 
       "via SFT spec" >> {
@@ -68,6 +58,19 @@ class CQIndexingOptionsTest extends Specification {
         setCQIndexType(originalWhoDescriptor, CQIndexType.HASH)
         getCQIndexType(originalWhoDescriptor) mustEqual CQIndexType.HASH
       }
+    }
+    "build IndexedCollections with indices" >> {
+      val sft = SimpleFeatureTypes.createType("test", spec)
+
+      val cq = CQIndexingOptions.buildIndexedCollection(sft)
+      val indexes: List[AbstractAttributeIndex[_, SimpleFeature]] =
+        cq.getIndexes.toList.collect{ case a: AbstractAttributeIndex[_, SimpleFeature] => a }
+
+      val nameToIndex: Map[String, AbstractAttributeIndex[_, SimpleFeature]] = indexes.map {
+        index => index.getAttribute.getAttributeName -> index
+      }.toMap
+
+      nameToIndex("Where") must beAnInstanceOf[GeoIndex[Geometry, SimpleFeature]]
     }
 
   }

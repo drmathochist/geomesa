@@ -1,8 +1,14 @@
 package org.locationtech.geomesa.memory.cqengine.utils
 
+import com.googlecode.cqengine.{ConcurrentIndexedCollection, IndexedCollection}
+import com.googlecode.cqengine.attribute.Attribute
+import com.vividsolutions.jts.geom.Geometry
+import org.locationtech.geomesa.memory.cqengine.attribute.SimpleFeatureAttribute
+import org.locationtech.geomesa.memory.cqengine.index.GeoIndex
 import org.locationtech.geomesa.memory.cqengine.utils.CQIndexType.CQIndexType
 import org.opengis.feature.`type`.AttributeDescriptor
 import org.locationtech.geomesa.utils.geotools.SimpleFeatureTypes._
+import org.opengis.feature.simple.{SimpleFeature, SimpleFeatureType}
 
 import scala.util.Try
 
@@ -15,6 +21,17 @@ object CQIndexingOptions {
 
   def setCQIndexType(ad: AttributeDescriptor, indexType: CQIndexType) {
     ad.getUserData.put(OPT_CQ_INDEX, indexType.toString)
+  }
+
+  def buildIndexedCollection(sft: SimpleFeatureType): IndexedCollection[SimpleFeature] = {
+    val defaultGeom: Attribute[SimpleFeature, Geometry] =
+      new SimpleFeatureAttribute(classOf[Geometry], sft.getGeometryDescriptor.getLocalName)
+
+    // TODO: Add logic to allow for the geo-index to be disabled?
+    val cqcache: IndexedCollection[SimpleFeature] = new ConcurrentIndexedCollection[SimpleFeature]()
+    cqcache.addIndex(GeoIndex.onAttribute(defaultGeom))
+
+    cqcache
   }
 }
 
