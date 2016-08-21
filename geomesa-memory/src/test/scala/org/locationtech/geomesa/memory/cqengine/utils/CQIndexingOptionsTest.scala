@@ -8,8 +8,14 @@
 
 package org.locationtech.geomesa.memory.cqengine.utils
 
+import java.util.Date
+
 import com.googlecode.cqengine.index.Index
+import com.googlecode.cqengine.index.hash.HashIndex
+import com.googlecode.cqengine.index.navigable.NavigableIndex
+import com.googlecode.cqengine.index.radix.RadixTreeIndex
 import com.googlecode.cqengine.index.support.AbstractAttributeIndex
+import com.googlecode.cqengine.index.unique.UniqueIndex
 import com.vividsolutions.jts.geom.Geometry
 import org.junit.runner.RunWith
 import org.locationtech.geomesa.memory.cqengine.index.GeoIndex
@@ -70,7 +76,15 @@ class CQIndexingOptionsTest extends Specification {
         index => index.getAttribute.getAttributeName -> index
       }.toMap
 
+      // NB: Where is the default geometry field, so it should be indexed with a GeoIndex
       nameToIndex("Where") must beAnInstanceOf[GeoIndex[Geometry, SimpleFeature]]
+
+      // Who is a string field and the 'default' hint is used.  This should be a Radix index
+      //nameToIndex("Who")   must beAnInstanceOf[RadixTreeIndex[String, SimpleFeature]]
+      nameToIndex("What")   must beAnInstanceOf[UniqueIndex[Integer, SimpleFeature]]
+      //nameToIndex("When")   must beAnInstanceOf[NavigableIndex[Date, SimpleFeature]]
+      nameToIndex("Why")    must beAnInstanceOf[HashIndex[String, SimpleFeature]]
+      // TODO: Fix the commented out tests above.
     }
 
   }

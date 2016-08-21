@@ -14,6 +14,7 @@ import java.util.UUID
 import com.googlecode.cqengine.attribute.Attribute
 import com.vividsolutions.jts.geom.Geometry
 import org.locationtech.geomesa.memory.cqengine.attribute.SimpleFeatureAttribute
+import org.opengis.feature.`type`.AttributeDescriptor
 import org.opengis.feature.simple.{SimpleFeature, SimpleFeatureType}
 
 import scala.collection.JavaConversions._
@@ -23,7 +24,7 @@ case class SFTAttributes(sft: SimpleFeatureType) {
 
   private val lookupMap: Map[String, Attribute[SimpleFeature, _]] = attributes.map { attr =>
     val name = attr.getLocalName
-    name -> buildSimpleFeatureAttribute(attr.getType.getBinding, name)
+    name -> SFTAttributes.buildSimpleFeatureAttribute(attr.getType.getBinding, name)
   }.toMap
 
   // TODO: this is really, really bad :)
@@ -33,6 +34,12 @@ case class SFTAttributes(sft: SimpleFeatureType) {
 
   def lookupComparable[T <: Comparable[T]](attributeName: String): Attribute[SimpleFeature, T] = {
     lookupMap(attributeName).asInstanceOf[Attribute[SimpleFeature, T]]
+  }
+}
+
+object SFTAttributes {
+  def buildSimpleFeatureAttribute(ad: AttributeDescriptor): Attribute[SimpleFeature, _] = {
+    buildSimpleFeatureAttribute(ad.getType.getBinding, ad.getLocalName)
   }
 
   def buildSimpleFeatureAttribute[A](binding: Class[_], name: String): Attribute[SimpleFeature, _] = {

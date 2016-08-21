@@ -1,19 +1,28 @@
 package org.locationtech.geomesa.memory.cqengine.utils
 
-import com.googlecode.cqengine.{ConcurrentIndexedCollection, IndexedCollection}
+import java.util.UUID
+
 import com.googlecode.cqengine.attribute.Attribute
+import com.googlecode.cqengine.index.hash.HashIndex
+import com.googlecode.cqengine.index.navigable.NavigableIndex
+import com.googlecode.cqengine.index.radix.RadixTreeIndex
+import com.googlecode.cqengine.index.unique.UniqueIndex
+import com.googlecode.cqengine.{ConcurrentIndexedCollection, IndexedCollection}
+import com.typesafe.scalalogging.LazyLogging
 import com.vividsolutions.jts.geom.Geometry
 import org.locationtech.geomesa.memory.cqengine.attribute.SimpleFeatureAttribute
 import org.locationtech.geomesa.memory.cqengine.index.GeoIndex
 import org.locationtech.geomesa.memory.cqengine.utils.CQIndexType.CQIndexType
-import org.opengis.feature.`type`.AttributeDescriptor
 import org.locationtech.geomesa.utils.geotools.SimpleFeatureTypes._
+import org.locationtech.geomesa.utils.geotools._
+import org.opengis.feature.`type`.{AttributeDescriptor, GeometryDescriptor}
 import org.opengis.feature.simple.{SimpleFeature, SimpleFeatureType}
 
+import scala.collection.JavaConversions._
 import scala.util.Try
 
 // See geomesa/geomesa-utils/src/main/scala/org/locationtech/geomesa/utils/geotools/Conversions.scala
-object CQIndexingOptions {
+object CQIndexingOptions extends LazyLogging {
   def getCQIndexType(ad: AttributeDescriptor): CQIndexType = {
     Option(ad.getUserData.get(OPT_CQ_INDEX).asInstanceOf[String])
       .flatMap(c => Try(CQIndexType.withName(c)).toOption).getOrElse(CQIndexType.NONE)
@@ -24,14 +33,77 @@ object CQIndexingOptions {
   }
 
   def buildIndexedCollection(sft: SimpleFeatureType): IndexedCollection[SimpleFeature] = {
-    val defaultGeom: Attribute[SimpleFeature, Geometry] =
-      new SimpleFeatureAttribute(classOf[Geometry], sft.getGeometryDescriptor.getLocalName)
-
-    // TODO: Add logic to allow for the geo-index to be disabled?
     val cqcache: IndexedCollection[SimpleFeature] = new ConcurrentIndexedCollection[SimpleFeature]()
-    cqcache.addIndex(GeoIndex.onAttribute(defaultGeom))
+
+    // Add Geometry index on default geometry first.
+    addGeoIndex(sft.getGeometryDescriptor, cqcache)
+
+    sft.getAttributeDescriptors.foreach {
+      addIndex(_, cqcache)
+    }
 
     cqcache
+  }
+
+  def addIndex(ad: AttributeDescriptor, coll: IndexedCollection[SimpleFeature]): Unit = {
+    getCQIndexType(ad) match {
+      case CQIndexType.DEFAULT   =>
+        ad.getType.getBinding match {
+          // Comparable fields should have a Navigable Index
+          case c if
+            classOf[java.lang.Integer].isAssignableFrom(c) ||
+            classOf[java.lang.Long].isAssignableFrom(c) ||
+            classOf[java.lang.Float].isAssignableFrom(c) ||
+            classOf[java.lang.Double].isAssignableFrom(c) ||
+            classOf[java.util.Date].isAssignableFrom(c)            => addNavigableIndex(ad, coll)
+          case c if classOf[java.lang.String].isAssignableFrom(c)  => addRadixIndex(ad, coll)
+          case c if classOf[Geometry].isAssignableFrom(c)          => addGeoIndex(ad, coll)
+          case c if classOf[UUID].isAssignableFrom(c)              => addUniqueIndex(ad, coll)
+          // TODO: Decide how boolean fields should be indexed
+          case c if classOf[java.lang.Boolean].isAssignableFrom(c) => addHashIndex(ad, coll)
+        }
+
+      case CQIndexType.NAVIGABLE => addNavigableIndex(ad, coll)
+      case CQIndexType.RADIX     => addRadixIndex(ad, coll)
+      case CQIndexType.UNIQUE    => addUniqueIndex(ad, coll)
+      case CQIndexType.HASH      => addHashIndex(ad, coll)
+      case CQIndexType.NONE      => // NO-OP
+    }
+  }
+
+  def addGeoIndex(ad: AttributeDescriptor, coll: IndexedCollection[SimpleFeature]): Unit = {
+    // TODO: Add logic to allow for the geo-index to be disabled?  (Low priority)
+    val defaultGeom: Attribute[SimpleFeature, Geometry] =
+      new SimpleFeatureAttribute(classOf[Geometry], ad.getLocalName)
+    coll.addIndex(GeoIndex.onAttribute(defaultGeom))
+  }
+
+  // TODO: Fix this!  The comparable requirement for navigable is tough
+  def addNavigableIndex(ad: AttributeDescriptor, coll: IndexedCollection[SimpleFeature]): Unit = {
+    //    val binding = ad.getType.getBinding
+    //    // TODO: Check binding to make sure it makes sense
+    //    val attribute = SFTAttributes.buildSimpleFeatureAttribute[Any](ad)
+    //    coll.addIndex(NavigableIndex.onAttribute(attribute))
+  }
+
+  def addRadixIndex(ad: AttributeDescriptor, coll: IndexedCollection[SimpleFeature]): Unit = {
+    if (classOf[java.lang.String].isAssignableFrom(ad.getType.getBinding)) {
+      val attribute: Attribute[SimpleFeature, String] =
+        SFTAttributes.buildSimpleFeatureAttribute(ad).asInstanceOf[Attribute[SimpleFeature, String]]
+      coll.addIndex(RadixTreeIndex.onAttribute(attribute))
+    } else {
+      logger.warn(s"Failed to add a Radix index for attribute ${ad.getLocalName}.")
+    }
+  }
+
+  def addUniqueIndex(ad: AttributeDescriptor, coll: IndexedCollection[SimpleFeature]): Unit = {
+    val attribute = SFTAttributes.buildSimpleFeatureAttribute(ad)
+    coll.addIndex(UniqueIndex.onAttribute(attribute))
+  }
+
+  def addHashIndex(ad: AttributeDescriptor, coll: IndexedCollection[SimpleFeature]): Unit = {
+    val attribute = SFTAttributes.buildSimpleFeatureAttribute(ad)
+    coll.addIndex(HashIndex.onAttribute(attribute))
   }
 }
 
