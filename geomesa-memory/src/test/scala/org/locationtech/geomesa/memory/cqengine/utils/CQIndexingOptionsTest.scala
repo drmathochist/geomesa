@@ -80,7 +80,7 @@ class CQIndexingOptionsTest extends Specification {
       nameToIndex("Where") must beAnInstanceOf[GeoIndex[Geometry, SimpleFeature]]
 
       // Who is a string field and the 'default' hint is used.  This should be a Radix index
-      //nameToIndex("Who")   must beAnInstanceOf[RadixTreeIndex[String, SimpleFeature]]
+      nameToIndex("Who")   must beAnInstanceOf[RadixTreeIndex[String, SimpleFeature]]
       nameToIndex("What")   must beAnInstanceOf[UniqueIndex[Integer, SimpleFeature]]
       //nameToIndex("When")   must beAnInstanceOf[NavigableIndex[Date, SimpleFeature]]
       nameToIndex("Why")    must beAnInstanceOf[HashIndex[String, SimpleFeature]]
