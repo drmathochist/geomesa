@@ -8,7 +8,6 @@
 
 package org.locationtech.geomesa.memory.cqengine.utils
 
-import com.googlecode.cqengine.query.{QueryFactory => CQF}
 import com.vividsolutions.jts.geom.Point
 import org.geotools.factory.CommonFactoryFinder
 import org.geotools.feature.simple.SimpleFeatureBuilder

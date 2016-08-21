@@ -50,12 +50,10 @@ public class Intersects<O, A extends Geometry> extends SimpleQuery<O, A> {
 
     @SuppressWarnings("unused")
     public boolean matchesValue(A aValue, QueryOptions queryOptions){
-
         return value.intersects(aValue);
     }
 
-    //     JNH: I don't think we have to override equals.
-//     NB: This is IDEA's auto-generated equals
+    //     NB: This is IDEA's auto-generated equals
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

@@ -8,26 +8,12 @@
 
 package org.locationtech.geomesa.memory.cqengine
 
-import org.opengis.feature.simple.SimpleFeatureType
-import com.google.common.base.Ticker
-import com.google.common.cache._
-import com.googlecode.cqengine.attribute.Attribute
 import com.googlecode.cqengine.query.Query
 import com.googlecode.cqengine.query.simple.All
-import com.googlecode.cqengine.{ConcurrentIndexedCollection, IndexedCollection}
-import com.typesafe.scalalogging.LazyLogging
-import com.vividsolutions.jts.geom.Geometry
-import org.locationtech.geomesa.memory.cqengine.attribute.SimpleFeatureAttribute
-import org.locationtech.geomesa.memory.cqengine.index.GeoIndex
-import org.locationtech.geomesa.memory.cqengine.utils.{CQEngineQueryVisitor, CQIndexingOptions, SFTAttributes}
-import org.locationtech.geomesa.utils.geotools.Conversions._
+import org.locationtech.geomesa.memory.cqengine.utils.{CQEngineQueryVisitor, CQIndexingOptions}
 import org.locationtech.geomesa.utils.geotools._
 import org.opengis.feature.simple.{SimpleFeature, SimpleFeatureType}
 import org.opengis.filter._
-
-import scala.collection.JavaConversions._
-import scala.collection.JavaConverters._
-import scala.collection.mutable
 
 class GeoCQEngine(sft: SimpleFeatureType) {
   val cqcache = CQIndexingOptions.buildIndexedCollection(sft)
