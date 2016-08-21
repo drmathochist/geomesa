@@ -1,11 +1,19 @@
+/***********************************************************************
+* Copyright (c) 2013-2016 Commonwealth Computer Research, Inc.
+* All rights reserved. This program and the accompanying materials
+* are made available under the terms of the Apache License, Version 2.0
+* which accompanies this distribution and is available at
+* http://www.opensource.org/licenses/apache2.0.php.
+*************************************************************************/
+
 package org.locationtech.geomesa.memory.cqengine.utils
 
 import com.googlecode.cqengine.attribute.Attribute
-import com.googlecode.cqengine.query.{Query, QueryFactory => CQF}
+import com.googlecode.cqengine.query.Query
 import com.vividsolutions.jts.geom.Geometry
 import org.geotools.filter.visitor.AbstractFilterVisitor
-import org.locationtech.geomesa.memory.cqengine.query.{Intersects => CQIntersects}
 import org.locationtech.geomesa.filter._
+import org.locationtech.geomesa.memory.cqengine.query.{Intersects => CQIntersects}
 import org.opengis.feature.simple.{SimpleFeature, SimpleFeatureType}
 import org.opengis.filter._
 import org.opengis.filter.expression.{Literal, PropertyName}

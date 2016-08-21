@@ -1,41 +1,36 @@
 /***********************************************************************
-  * Copyright (c) 2013-2016 Commonwealth Computer Research, Inc.
-  * All rights reserved. This program and the accompanying materials
-  * are made available under the terms of the Apache License, Version 2.0
-  * which accompanies this distribution and is available at
-  * http://www.opensource.org/licenses/apache2.0.php.
-  *************************************************************************/
+* Copyright (c) 2013-2016 Commonwealth Computer Research, Inc.
+* All rights reserved. This program and the accompanying materials
+* are made available under the terms of the Apache License, Version 2.0
+* which accompanies this distribution and is available at
+* http://www.opensource.org/licenses/apache2.0.php.
+*************************************************************************/
 
 package org.locationtech.geomesa.memory.cqengine.utils
 
-import com.google.common.base.Ticker
-import com.googlecode.cqengine.query.option.QueryOptions
-import com.googlecode.cqengine.query.{Query, QueryFactory => CQF}
-import com.vividsolutions.jts.geom.{Geometry, Point}
+import com.googlecode.cqengine.query.{QueryFactory => CQF}
+import com.vividsolutions.jts.geom.Point
 import org.geotools.factory.CommonFactoryFinder
 import org.geotools.feature.simple.SimpleFeatureBuilder
-import org.geotools.filter.text.ecql.ECQL
-import org.geotools.filter.visitor.SimplifyingFilterVisitor
-import org.joda.time.{DateTime, DateTimeZone, Instant}
-import org.locationtech.geomesa.filter._
-import org.locationtech.geomesa.memory.cqengine.index.GeoIndex
-import org.locationtech.geomesa.memory.cqengine.query
-import org.locationtech.geomesa.utils.geotools.Conversions._
+import org.joda.time.{DateTime, DateTimeZone}
 import org.locationtech.geomesa.utils.geotools.SimpleFeatureTypes
 import org.locationtech.geomesa.utils.text.WKTUtils
 import org.opengis.feature.simple.SimpleFeature
-import org.opengis.filter._
-import org.opengis.filter.spatial._
-import org.opengis.filter.temporal._
 
-import scala.collection.JavaConversions._
-import scala.collection.mutable
 import scala.language._
 import scala.util.Random
 
 object SampleFeatures {
   val spec = "Who:String:index=full,What:Integer,When:Date,*Where:Point:srid=4326,Why:String"
   val sft = SimpleFeatureTypes.createType("test", spec)
+
+  val specIndexs =  "Who:String:cq_index=default," +
+                    "What:Integer:cq_index=navigable," +
+                    "When:Date:cq_index=navigable," +
+                    "*Where:Point:srid=4326," +
+                    "Why:String"   // 'Why' can have nulls...
+  val sftWithIndexes = SimpleFeatureTypes.createType("test2", specIndexs)
+
   val cq = SFTAttributes(sft)
   val ff = CommonFactoryFinder.getFilterFactory2
 
@@ -72,5 +67,4 @@ object SampleFeatures {
     }
     builder.buildFeature(i.toString)
   }
-
 }

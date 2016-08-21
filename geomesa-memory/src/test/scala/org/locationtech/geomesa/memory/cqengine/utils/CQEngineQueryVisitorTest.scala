@@ -8,25 +8,19 @@
 
 package org.locationtech.geomesa.memory.cqengine.utils
 
-import com.googlecode.cqengine.{ConcurrentIndexedCollection, IndexedCollection}
-import com.googlecode.cqengine.attribute.Attribute
+import com.googlecode.cqengine.IndexedCollection
 import com.googlecode.cqengine.query.{Query, QueryFactory => QF}
 import com.vividsolutions.jts.geom.Geometry
-import org.geotools.factory.CommonFactoryFinder
-import org.geotools.feature.DefaultFeatureCollection
 import org.geotools.filter.text.ecql.ECQL
 import org.junit.runner.RunWith
-import org.locationtech.geomesa.memory.cqengine.attribute.SimpleFeatureAttribute
-import org.locationtech.geomesa.memory.cqengine.index.GeoIndex
 import org.locationtech.geomesa.memory.cqengine.query.Intersects
-import org.locationtech.geomesa.utils.geotools.SimpleFeatureTypes
+import org.locationtech.geomesa.memory.cqengine.utils.SampleFeatures._
 import org.locationtech.geomesa.utils.text.WKTUtils
 import org.opengis.feature.simple.SimpleFeature
 import org.opengis.filter.Filter
+import org.specs2.matcher.MatchResult
 import org.specs2.mutable.Specification
 import org.specs2.runner.JUnitRunner
-import SampleFeatures._
-import org.specs2.matcher.MatchResult
 
 import scala.collection.JavaConversions._
 
@@ -83,19 +77,18 @@ class CQEngineQueryVisitorTest extends Specification {
       val feats = (0 until 1000).map(SampleFeatures.buildFeature)
 
       // Set up CQEngine with a Geo-index.
-      val defaultGeom: Attribute[SimpleFeature, Geometry] =
-        new SimpleFeatureAttribute(classOf[Geometry], sft.getGeometryDescriptor.getLocalName)
-
-      val cqcache: IndexedCollection[SimpleFeature] = new ConcurrentIndexedCollection[SimpleFeature]()
-      cqcache.addIndex(GeoIndex.onAttribute(defaultGeom))
+      val cqcache: IndexedCollection[SimpleFeature] = CQIndexingOptions.buildIndexedCollection(sft)
       cqcache.addAll(feats)
 
+      val cqcache2: IndexedCollection[SimpleFeature] = CQIndexingOptions.buildIndexedCollection(sftWithIndexes)
+      cqcache2.addAll(feats)
+
       def getGeoToolsCount(filter: Filter) = feats.count(filter.evaluate)
-      def getCQEngineCount(filter: Filter) = {
+      def getCQEngineCount(filter: Filter, coll: IndexedCollection[SimpleFeature]) = {
         val visitor = new CQEngineQueryVisitor(sft)
         val query: Query[SimpleFeature] = filter.accept(visitor, null).asInstanceOf[Query[SimpleFeature]]
         println(s"Query for CQCache: $query")
-        cqcache.retrieve(query).iterator().toList.size
+        coll.retrieve(query).iterator().toList.size
       }
 
       val testFilters = Seq(
@@ -103,12 +96,13 @@ class CQEngineQueryVisitorTest extends Specification {
         "What = 5",
         "What > 3",
 //        "What >= 3",
+        "INTERSECTS(Where, POLYGON((0 0, 0 90, 180 90, 180 0, 0 0)))",
         "INTERSECTS(Where, POLYGON((0 0, 0 90, 180 90, 180 0, 0 0))) AND Who IN('Addams', 'Bierce')"
       )
 
-      def checkFilter(filter: Filter): MatchResult[Int] = {
+      def checkFilter(filter: Filter, coll: IndexedCollection[SimpleFeature]): MatchResult[Int] = {
         val gtCount = getGeoToolsCount(filter)
-        val cqCount = getCQEngineCount(filter)
+        val cqCount = getCQEngineCount(filter, coll)
 
         println(s"GT: $gtCount CQ: $cqCount Filter: $filter")
 
@@ -118,8 +112,11 @@ class CQEngineQueryVisitorTest extends Specification {
       examplesBlock {
         for (i <- testFilters.indices) {
           val t = testFilters(i)
-          s"for filter $t" in {
-            checkFilter(t)
+          s"for filter $t for a geo-only index" in {
+            checkFilter(t, cqcache)
+          }
+          s"for filter $t for various indices" in {
+            checkFilter(t, cqcache2)
           }
         }
       }

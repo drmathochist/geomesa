@@ -1,10 +1,17 @@
+/***********************************************************************
+* Copyright (c) 2013-2016 Commonwealth Computer Research, Inc.
+* All rights reserved. This program and the accompanying materials
+* are made available under the terms of the Apache License, Version 2.0
+* which accompanies this distribution and is available at
+* http://www.opensource.org/licenses/apache2.0.php.
+*************************************************************************/
+
 package org.locationtech.geomesa.memory.cqengine.utils
 
 import java.util.UUID
 
 import com.googlecode.cqengine.attribute.Attribute
 import com.googlecode.cqengine.index.hash.HashIndex
-import com.googlecode.cqengine.index.navigable.NavigableIndex
 import com.googlecode.cqengine.index.radix.RadixTreeIndex
 import com.googlecode.cqengine.index.unique.UniqueIndex
 import com.googlecode.cqengine.{ConcurrentIndexedCollection, IndexedCollection}
@@ -14,8 +21,7 @@ import org.locationtech.geomesa.memory.cqengine.attribute.SimpleFeatureAttribute
 import org.locationtech.geomesa.memory.cqengine.index.GeoIndex
 import org.locationtech.geomesa.memory.cqengine.utils.CQIndexType.CQIndexType
 import org.locationtech.geomesa.utils.geotools.SimpleFeatureTypes._
-import org.locationtech.geomesa.utils.geotools._
-import org.opengis.feature.`type`.{AttributeDescriptor, GeometryDescriptor}
+import org.opengis.feature.`type`.AttributeDescriptor
 import org.opengis.feature.simple.{SimpleFeature, SimpleFeatureType}
 
 import scala.collection.JavaConversions._
