@@ -112,6 +112,7 @@ class LiveFeatureCacheGuava(override val sft: SimpleFeatureType,
   * EXPERIMENTAL!
   */
 // NB: The necessary dependencies have been commented out...
+/*
 class LiveFeatureCacheH2(sft: SimpleFeatureType) extends LiveFeatureCache {
   val ff = CommonFactoryFinder.getFilterFactory2
   val params = Map("dbtype" -> "h2gis", "database" -> "mem:db1")
@@ -158,3 +159,4 @@ class LiveFeatureCacheH2(sft: SimpleFeatureType) extends LiveFeatureCache {
 
   def getFeatures(filter: Filter) = fs.getFeatures(filter)
 }
+*/

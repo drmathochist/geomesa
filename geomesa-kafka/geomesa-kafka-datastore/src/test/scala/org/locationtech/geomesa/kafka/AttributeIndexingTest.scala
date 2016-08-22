@@ -171,9 +171,9 @@ class AttributeIndexingTest {
   val geoJustCD = ff.and(justifiedCD, bbox2)
   val badOr = ff.or(geoJustAB, geoJustCD)
 
-  //val filters = Seq(ab, cd, w14, where, justified, justifiedAB, justifiedCD, just, justBBOX, justBBOX2, bbox2)
-  val ab_w14 = ff.and(ab, w14)
-  val filters = Seq(ab, cd, w14, ab_w14)
+  val filters = Seq(ab, cd, w14, where, justified, justifiedAB, justifiedCD, just, justBBOX, justBBOX2, bbox2)
+  //val ab_w14 = ff.and(ab, w14)
+  //val filters = Seq(ab, cd, w14, ab_w14)
 
   // Easier filters
   val geoCD = ff.and(cd, bbox2)
@@ -203,7 +203,7 @@ class AttributeIndexingTest {
   // load different LiveFeatureCache implementations
   implicit val ticker = Ticker.systemTicker()
   val lfc = new LiveFeatureCacheGuava(sft, None)
-  val h2  = new LiveFeatureCacheH2(sft)
+  //val h2  = new LiveFeatureCacheH2(sft)
   val cq  = new LiveFeatureCacheCQEngine(sft, None)
 
   val sfv = new SimplifyingFilterVisitor
@@ -304,6 +304,7 @@ class AttributeIndexingTest {
     runQueries[Filter](11, f => lfc.getReaderForFilter(f).getIterator.size, filters)
   }
 
+  /*
   def benchmarkH2() = {
     val h2_pop = timeUnit(for (sf <- feats) {
       h2.createOrUpdateFeature(sf)
@@ -322,6 +323,7 @@ class AttributeIndexingTest {
     // run queries again
     runQueries[Filter](11, f => h2.getFeatures(f).features.size, filters)
   }
+  */
 
   object CQData {
 
@@ -367,14 +369,14 @@ class AttributeIndexingTest {
     println(s"cq populate: ${feats.size} in $cq_pop ms (${feats.size.toDouble / cq_pop}/ms)")
     //println(s"cache size: ${cqholder.cqcache.size}")
 
-    runQueries[Query[SimpleFeature]](11, q => cq.getReaderForQuery(q).getIterator.size, CQData.queries)
+    runQueries[Filter](11, f => cq.getReaderForFilter(f).getIterator.size, filters)
 
     val cq_repop = timeUnit({
       for (sf <- featsUpdate) cq.createOrUpdateFeature(sf)
     })
     println(s"cq repopulate = ${featsUpdate.size} in $cq_repop ms (${featsUpdate.size.toDouble / cq_repop}/ms)")
 
-    runQueries[Query[SimpleFeature]](11, q => cq.getReaderForQuery(q).getIterator.size, CQData.queries)
+    runQueries[Filter](11, f => cq.getReaderForFilter(f).getIterator.size, filters)
   }
 }
 
