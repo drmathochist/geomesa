@@ -28,8 +28,8 @@ import scala.collection.JavaConversions._
 class CQEngineQueryVisitorTest extends Specification {
   implicit def stringToFilter(s: String): Filter = ECQL.toFilter(s)
 
-  "Visitor" should {
-    "basic queries" should {
+  "CQEngineQueryVisitor" should {
+    "parse filters" should {
       sequential
 
       val visitor = new CQEngineQueryVisitor(sft)
@@ -73,7 +73,7 @@ class CQEngineQueryVisitorTest extends Specification {
       }
     }
 
-    "queries should return the same number of results" >> {
+    "return correct number of results" >> {
       val feats = (0 until 1000).map(SampleFeatures.buildFeature)
 
       // Set up CQEngine with a Geo-index.
@@ -91,15 +91,6 @@ class CQEngineQueryVisitorTest extends Specification {
         coll.retrieve(query).iterator().toList.size
       }
 
-      val testFilters = Seq(
-        "Who IN('Addams', 'Bierce')",
-        "What = 5",
-        "What > 3",
-//        "What >= 3",
-        "INTERSECTS(Where, POLYGON((0 0, 0 90, 180 90, 180 0, 0 0)))",
-        "INTERSECTS(Where, POLYGON((0 0, 0 90, 180 90, 180 0, 0 0))) AND Who IN('Addams', 'Bierce')"
-      )
-
       def checkFilter(filter: Filter, coll: IndexedCollection[SimpleFeature]): MatchResult[Int] = {
         val gtCount = getGeoToolsCount(filter)
         val cqCount = getCQEngineCount(filter, coll)
@@ -109,17 +100,68 @@ class CQEngineQueryVisitorTest extends Specification {
         gtCount must equalTo(cqCount)
       }
 
-      examplesBlock {
-        for (i <- testFilters.indices) {
-          val t = testFilters(i)
-          s"for filter $t for a geo-only index" in {
-            checkFilter(t, cqcache)
-          }
-          s"for filter $t for various indices" in {
-            checkFilter(t, cqcache2)
+      def runFilterTests(name: String, filters: Seq[Filter]) = {
+        examplesBlock {
+          for (f <- filters) {
+            s"$name filter $f (geo-only index)" in {
+              checkFilter(f, cqcache)
+            }
+            s"$name filter $f (various indices)" in {
+              checkFilter(f, cqcache2)
+            }
           }
         }
       }
+
+      // big enough so there are likely to be points in them
+      val bbox1 = "POLYGON((-89 89, -1 89, -1 -89, -89 -89, -89 89))"
+      val bbox2 = "POLYGON((-180 90, 0 90, 0 0, -180 0, -180 90))"
+
+      val basicFilters = Seq[Filter](
+        "Who IN('Addams', 'Bierce')",
+        "What = 5",
+        s"INTERSECTS(Where, $bbox1)",
+        s"INTERSECTS(Where, $bbox2) AND Who IN('Addams', 'Bierce')",
+        s"NOT (INTERSECTS(Where, $bbox1))",
+        s"NOT (INTERSECTS(Where, $bbox1))",
+        "When BETWEEN '0000-01-01T00:00:00.000Z' AND '9999-12-31T23:59:59.000Z'",
+        "When BETWEEN '2010-07-01T00:00:00.000Z' AND '2010-07-31T00:00:00.000Z'"
+      )
+      runFilterTests("basic", basicFilters)
+
+      val comparableFilters = Seq[Filter](
+        "What = 5",
+        "WhatLong = 5",
+
+        "What > 5",
+        "WhatLong > 5",
+        "WhatFloat > 5.0",
+        "WhatDouble > 5.0",
+
+        "What >= 5",
+        "WhatLong >= 5",
+        "WhatFloat >= 5.0",
+        "WhatDouble >= 5.0",
+
+        "What < 5",
+        "WhatLong < 5",
+        "WhatFloat < 5.0",
+        "WhatDouble < 5.0",
+
+        "What <= 5",
+        "WhatLong <= 5",
+        "WhatFloat <= 5.0",
+        "WhatDouble <= 5.0"
+      )
+      runFilterTests("comparable", comparableFilters)
+
+      val oneLevelAndFilters: Seq[Filter] = Seq(
+        s"(INTERSECTS(Where, $bbox1) AND INTERSECTS(Where, $bbox2))",
+        s"(INTERSECTS(Where, $bbox1) AND Who = 'Addams')",
+        s"(Who = 'Addams' AND INTERSECTS(Where, $bbox1))",
+        s"INTERSECTS(Where, $bbox1) AND When DURING 2010-08-08T00:00:00.000Z/2010-08-08T23:59:59.000Z"
+      )
+      runFilterTests("one level AND", oneLevelAndFilters)
     }
   }
 }

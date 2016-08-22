@@ -20,15 +20,26 @@ import scala.language._
 import scala.util.Random
 
 object SampleFeatures {
-  val spec = "Who:String:index=full,What:Integer,When:Date,*Where:Point:srid=4326,Why:String"
+  val spec = List(
+    "Who:String:index=full",
+    "What:Integer",
+    "WhatLong:Long",
+    "WhatFloat:Float",
+    "WhatDouble:Double",
+    "When:Date",
+    "*Where:Point:srid=4326",
+    "Why:String"
+  ).mkString(",")
   val sft = SimpleFeatureTypes.createType("test", spec)
 
-  val specIndexs =  "Who:String:cq_index=default," +
-                    "What:Integer:cq_index=navigable," +
-                    "When:Date:cq_index=navigable," +
-                    "*Where:Point:srid=4326," +
-                    "Why:String"   // 'Why' can have nulls...
-  val sftWithIndexes = SimpleFeatureTypes.createType("test2", specIndexs)
+  val specIndexes = List(
+    "Who:String:cq_index=default",
+    "What:Integer:cq_index=navigable",
+    "When:Date:cq_index=navigable",
+    "*Where:Point:srid=4326",
+    "Why:String"  // Why can have nulls
+  ).mkString(",")
+  val sftWithIndexes = SimpleFeatureTypes.createType("test2", specIndexes)
 
   val cq = SFTAttributes(sft)
   val ff = CommonFactoryFinder.getFilterFactory2
@@ -59,6 +70,9 @@ object SampleFeatures {
   def buildFeature(i: Int): SimpleFeature = {
     builder.set("Who", getName)
     builder.set("What", Random.nextInt(10))
+    builder.set("WhatLong", Random.nextInt(10).toLong)
+    builder.set("WhatFloat", Random.nextFloat * 10.0F)
+    builder.set("WhatDouble", Random.nextDouble() * 10.0)
     builder.set("When", randDate)
     builder.set("Where", getPoint)
     if (Random.nextBoolean()) {

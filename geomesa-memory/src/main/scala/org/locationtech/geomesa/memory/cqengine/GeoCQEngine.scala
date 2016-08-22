@@ -46,7 +46,7 @@ class GeoCQEngine(sft: SimpleFeatureType) {
       case _ => throw new Exception(s"Filter visitor didn't recognize filter: $f.")
     }
     // TODO: Replace println with logging.
-    println(s"Querying CQEngine with $query")
+    //println(s"Querying CQEngine with $query")
     new DFR(sft, new DFI(cqcache.retrieve(query).iterator()))
   }
 
