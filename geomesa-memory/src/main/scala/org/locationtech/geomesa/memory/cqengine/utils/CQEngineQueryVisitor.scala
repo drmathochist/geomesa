@@ -10,6 +10,7 @@ package org.locationtech.geomesa.memory.cqengine.utils
 
 import com.googlecode.cqengine.attribute.Attribute
 import com.googlecode.cqengine.query.Query
+import com.googlecode.cqengine.query.simple.{GreaterThan, LessThan}
 import com.vividsolutions.jts.geom.Geometry
 import org.geotools.filter.visitor.AbstractFilterVisitor
 import org.locationtech.geomesa.filter._
@@ -18,13 +19,12 @@ import org.opengis.feature.simple.{SimpleFeature, SimpleFeatureType}
 import org.opengis.filter._
 import org.opengis.filter.expression.{Literal, PropertyName}
 import org.opengis.filter.spatial._
-import org.opengis.filter.temporal._
 
 import scala.collection.JavaConversions._
 import scala.language._
 
 class CQEngineQueryVisitor(sft: SimpleFeatureType) extends AbstractFilterVisitor {
-  val lookup = SFTAttributes(sft)
+  implicit val lookup = SFTAttributes(sft)
 
   override def visit(filter: And, data: scala.Any): AnyRef = {
     val children = filter.getChildren
@@ -73,111 +73,43 @@ class CQEngineQueryVisitor(sft: SimpleFeatureType) extends AbstractFilterVisitor
     new com.googlecode.cqengine.query.simple.Equal(attribute, value)
   }
 
-  override def visit(filter: PropertyIsGreaterThan, data: scala.Any): AnyRef = {
+  override def visit(filter: PropertyIsGreaterThan, data: scala.Any): GreaterThan[SimpleFeature, _] = {
     val prop = getAttributeProperty(filter).get
-    val attributeName = prop.name
-    sft.getDescriptor(attributeName).getType.getBinding match {
-      case c if classOf[java.lang.Integer].isAssignableFrom(c) => {
-        val attr = lookup.lookupComparable[java.lang.Integer](attributeName)
-        val value = prop.literal.evaluate(null, classOf[java.lang.Integer])
-        new com.googlecode.cqengine.query.simple.GreaterThan[SimpleFeature, java.lang.Integer](attr, value, false)
-      }
-      case c if classOf[java.lang.Long].isAssignableFrom(c) => {
-        val attr = lookup.lookupComparable[java.lang.Long](attributeName)
-        val value = prop.literal.evaluate(null, classOf[java.lang.Long])
-        new com.googlecode.cqengine.query.simple.GreaterThan[SimpleFeature, java.lang.Long](attr, value, false)
-      }
-      case c if classOf[java.lang.Float].isAssignableFrom(c) => {
-        val attr = lookup.lookupComparable[java.lang.Float](attributeName)
-        val value = prop.literal.evaluate(null, classOf[java.lang.Float])
-        new com.googlecode.cqengine.query.simple.GreaterThan[SimpleFeature, java.lang.Float](attr, value, false)
-      }
-      case c if classOf[java.lang.Double].isAssignableFrom(c) => {
-        val attr = lookup.lookupComparable[java.lang.Double](attributeName)
-        val value = prop.literal.evaluate(null, classOf[java.lang.Double])
-        new com.googlecode.cqengine.query.simple.GreaterThan[SimpleFeature, java.lang.Double](attr, value, false)
-      }
+    sft.getDescriptor(prop.name).getType.getBinding match {
+      case c if classOf[java.lang.Integer].isAssignableFrom(c) => BuildIntGTQuery(prop)
+      case c if classOf[java.lang.Long   ].isAssignableFrom(c) => BuildLongGTQuery(prop)
+      case c if classOf[java.lang.Float  ].isAssignableFrom(c) => BuildFloatGTQuery(prop)
+      case c if classOf[java.lang.Double ].isAssignableFrom(c) => BuildDoubleGTQuery(prop)
     }
   }
 
-  override def visit(filter: PropertyIsGreaterThanOrEqualTo, data: scala.Any): AnyRef = {
+  override def visit(filter: PropertyIsGreaterThanOrEqualTo, data: scala.Any): GreaterThan[SimpleFeature, _] = {
     val prop = getAttributeProperty(filter).get
-    val attributeName = prop.name
-    sft.getDescriptor(attributeName).getType.getBinding match {
-      case c if classOf[java.lang.Integer].isAssignableFrom(c) => {
-        val attr = lookup.lookupComparable[java.lang.Integer](attributeName)
-        val value = prop.literal.evaluate(null, classOf[java.lang.Integer])
-        new com.googlecode.cqengine.query.simple.GreaterThan[SimpleFeature, java.lang.Integer](attr, value, true)
-      }
-      case c if classOf[java.lang.Long].isAssignableFrom(c) => {
-        val attr = lookup.lookupComparable[java.lang.Long](attributeName)
-        val value = prop.literal.evaluate(null, classOf[java.lang.Long])
-        new com.googlecode.cqengine.query.simple.GreaterThan[SimpleFeature, java.lang.Long](attr, value, true)
-      }
-      case c if classOf[java.lang.Float].isAssignableFrom(c) => {
-        val attr = lookup.lookupComparable[java.lang.Float](attributeName)
-        val value = prop.literal.evaluate(null, classOf[java.lang.Float])
-        new com.googlecode.cqengine.query.simple.GreaterThan[SimpleFeature, java.lang.Float](attr, value, true)
-      }
-      case c if classOf[java.lang.Double].isAssignableFrom(c) => {
-        val attr = lookup.lookupComparable[java.lang.Double](attributeName)
-        val value = prop.literal.evaluate(null, classOf[java.lang.Double])
-        new com.googlecode.cqengine.query.simple.GreaterThan[SimpleFeature, java.lang.Double](attr, value, true)
-      }
+    sft.getDescriptor(prop.name).getType.getBinding match {
+      case c if classOf[java.lang.Integer].isAssignableFrom(c) => BuildIntGTEQuery(prop)
+      case c if classOf[java.lang.Long   ].isAssignableFrom(c) => BuildLongGTEQuery(prop)
+      case c if classOf[java.lang.Float  ].isAssignableFrom(c) => BuildFloatGTEQuery(prop)
+      case c if classOf[java.lang.Double ].isAssignableFrom(c) => BuildDoubleGTEQuery(prop)
     }
   }
 
-  override def visit(filter: PropertyIsLessThan, data: scala.Any): AnyRef = {
+  override def visit(filter: PropertyIsLessThan, data: scala.Any): LessThan[SimpleFeature, _] = {
     val prop = getAttributeProperty(filter).get
-    val attributeName = prop.name
-    sft.getDescriptor(attributeName).getType.getBinding match {
-      case c if classOf[java.lang.Integer].isAssignableFrom(c) => {
-        val attr = lookup.lookupComparable[java.lang.Integer](attributeName)
-        val value = prop.literal.evaluate(null, classOf[java.lang.Integer])
-        new com.googlecode.cqengine.query.simple.LessThan[SimpleFeature, java.lang.Integer](attr, value, false)
-      }
-      case c if classOf[java.lang.Long].isAssignableFrom(c) => {
-        val attr = lookup.lookupComparable[java.lang.Long](attributeName)
-        val value = prop.literal.evaluate(null, classOf[java.lang.Long])
-        new com.googlecode.cqengine.query.simple.LessThan[SimpleFeature, java.lang.Long](attr, value, false)
-      }
-      case c if classOf[java.lang.Float].isAssignableFrom(c) => {
-        val attr = lookup.lookupComparable[java.lang.Float](attributeName)
-        val value = prop.literal.evaluate(null, classOf[java.lang.Float])
-        new com.googlecode.cqengine.query.simple.LessThan[SimpleFeature, java.lang.Float](attr, value, false)
-      }
-      case c if classOf[java.lang.Double].isAssignableFrom(c) => {
-        val attr = lookup.lookupComparable[java.lang.Double](attributeName)
-        val value = prop.literal.evaluate(null, classOf[java.lang.Double])
-        new com.googlecode.cqengine.query.simple.LessThan[SimpleFeature, java.lang.Double](attr, value, false)
-      }
+    sft.getDescriptor(prop.name).getType.getBinding match {
+      case c if classOf[java.lang.Integer].isAssignableFrom(c) => BuildIntLTQuery(prop)
+      case c if classOf[java.lang.Long   ].isAssignableFrom(c) => BuildLongLTQuery(prop)
+      case c if classOf[java.lang.Float  ].isAssignableFrom(c) => BuildFloatLTQuery(prop)
+      case c if classOf[java.lang.Double ].isAssignableFrom(c) => BuildDoubleLTQuery(prop)
     }
   }
 
-  override def visit(filter: PropertyIsLessThanOrEqualTo, data: scala.Any): AnyRef = {
+  override def visit(filter: PropertyIsLessThanOrEqualTo, data: scala.Any): LessThan[SimpleFeature, _] = {
     val prop = getAttributeProperty(filter).get
-    val attributeName = prop.name
-    sft.getDescriptor(attributeName).getType.getBinding match {
-      case c if classOf[java.lang.Integer].isAssignableFrom(c) => {
-        val attr = lookup.lookupComparable[java.lang.Integer](attributeName)
-        val value = prop.literal.evaluate(null, classOf[java.lang.Integer])
-        new com.googlecode.cqengine.query.simple.LessThan[SimpleFeature, java.lang.Integer](attr, value, true)
-      }
-      case c if classOf[java.lang.Long].isAssignableFrom(c) => {
-        val attr = lookup.lookupComparable[java.lang.Long](attributeName)
-        val value = prop.literal.evaluate(null, classOf[java.lang.Long])
-        new com.googlecode.cqengine.query.simple.LessThan[SimpleFeature, java.lang.Long](attr, value, true)
-      }
-      case c if classOf[java.lang.Float].isAssignableFrom(c) => {
-        val attr = lookup.lookupComparable[java.lang.Float](attributeName)
-        val value = prop.literal.evaluate(null, classOf[java.lang.Float])
-        new com.googlecode.cqengine.query.simple.LessThan[SimpleFeature, java.lang.Float](attr, value, true)
-      }
-      case c if classOf[java.lang.Double].isAssignableFrom(c) => {
-        val attr = lookup.lookupComparable[java.lang.Double](attributeName)
-        val value = prop.literal.evaluate(null, classOf[java.lang.Double])
-        new com.googlecode.cqengine.query.simple.LessThan[SimpleFeature, java.lang.Double](attr, value, true)
-      }
+    sft.getDescriptor(prop.name).getType.getBinding match {
+      case c if classOf[java.lang.Integer].isAssignableFrom(c) => BuildIntLTEQuery(prop)
+      case c if classOf[java.lang.Long   ].isAssignableFrom(c) => BuildLongLTEQuery(prop)
+      case c if classOf[java.lang.Float  ].isAssignableFrom(c) => BuildFloatLTEQuery(prop)
+      case c if classOf[java.lang.Double ].isAssignableFrom(c) => BuildDoubleLTEQuery(prop)
     }
   }
 
